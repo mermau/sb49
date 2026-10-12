@@ -12,10 +12,10 @@ struct ParamInfo
 
 namespace pid
 {
-inline constexpr std::array<ParamInfo, 20> all {{
+inline constexpr std::array<ParamInfo, 21> all {{
     { "brassAttack",    "Brass Attack",       false, 0.15f },
     { "brassDecay",     "Brass Decay",        false, 0.60f },
-    { "brassRange",     "Brass Range",        false, 0.65f },
+    { "brassRange",     "Brass Range",        false, 0.45f },
     { "brassResonance", "Brass Resonance",    false, 0.25f },
     { "brassOn",        "Brass On",           true,  0.0f  },
     { "brassVolume",    "Brass Volume",       false, 0.70f },
@@ -33,13 +33,14 @@ inline constexpr std::array<ParamInfo, 20> all {{
     { "modToVcf",       "Mod VCF/FM",         true,  0.0f  },
     { "masterVolume",   "Master Volume",      false, 0.80f },
     { "pitch",          "Pitch",              false, 0.0f  }, // range -15..+15 semitoni
+    { "brassRetrig",    "Brass Retrig",       true,  0.0f  }, // estensione, non presente nell'originale
 }};
 
 enum Index
 {
     brassAttack, brassDecay, brassRange, brassResonance, brassOn, brassVolume,
     stringsLow, stringsMid, stringsHigh, strings16, strings8, crescendo, sustain, stringsVolume,
-    modDelay, modRate, modDepth, modToVcf, masterVolume, pitch,
+    modDelay, modRate, modDepth, modToVcf, masterVolume, pitch, brassRetrig,
     stereoEnsemble = 100 // non mappabile, non nell'elenco principale
 };
 

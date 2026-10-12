@@ -63,6 +63,7 @@ perf::Params PerformerAudioProcessor::readParams() const
     p.modDelay = v (pid::modDelay);         p.modRate = v (pid::modRate);
     p.modDepth = v (pid::modDepth);         p.modToVcf = v (pid::modToVcf) > 0.5f;
     p.masterVolume = v (pid::masterVolume); p.pitchSemitones = v (pid::pitch);
+    p.brassRetrig = v (pid::brassRetrig) > 0.5f;
     p.stereoEnsemble = rawStereo->load() > 0.5f;
     return p;
 }

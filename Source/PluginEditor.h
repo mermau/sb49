@@ -69,8 +69,8 @@ private:
 
     std::unique_ptr<LearnSlider> pitchKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchAtt;
-    juce::ToggleButton stereoToggle;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> stereoAtt;
+    juce::ToggleButton stereoToggle, retrigToggle;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> stereoAtt, retrigAtt;
     PerfButton* modLedButton = nullptr;
 
     juce::MidiKeyboardComponent keyboard;

@@ -17,8 +17,9 @@ constexpr int    kNumOctaves  = 10;        // uscite divisore considerate per cl
 struct Params
 {
     // Sezione BRASS (P557)
-    float brassAttack = 0.15f, brassDecay = 0.6f, brassRange = 0.65f, brassResonance = 0.25f, brassVolume = 0.7f;
+    float brassAttack = 0.15f, brassDecay = 0.6f, brassRange = 0.45f, brassResonance = 0.25f, brassVolume = 0.7f;
     bool  brassOn = false;
+    bool  brassRetrig = false; // estensione: riattacco a ogni nota (l'originale è single-trigger)
     // Sezione STRINGS (P554/P559)
     float stringsLow = 0.5f, stringsMid = 0.6f, stringsHigh = 0.5f;
     bool  strings16 = false, strings8 = true;

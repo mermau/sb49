@@ -194,6 +194,10 @@ void Engine::refreshHeldCount()
 void Engine::noteOn (int note)
 {
     auto& k = keys[(size_t) (foldNote (note) - kLowestNote)];
+    // RETRIG (estensione): ogni nuovo tasto riarma l'inviluppo brass anche suonando legato.
+    // Nell'originale il gate è comune ai 49 tasti, quindi l'attacco parte solo dal primo.
+    if (params.brassRetrig && heldKeys > 0)
+        brassNode = 1.0f;
     ++k.heldCount;
     refreshHeldCount();
 }
@@ -357,7 +361,9 @@ void Engine::process (float* L, float* R, int n)
         if (p.brassOn)
         {
             const float vcfLfo = p.modToVcf ? lfo * 2.5f : 0.0f;
-            const float oct = 0.3f + p.brassRange * (1.2f + 8.3f * brassEnv) + vcfLfo;
+            // P557: su TR13 si sommano RANGE (R30), inviluppo da C2 (R28) e modulazione (R31).
+            // RANGE fissa l'apertura di base, l'inviluppo la porta più in alto.
+            const float oct = 1.6f + 7.0f * p.brassRange + 3.6f * brassEnv + vcfLfo;
             brassOut = ladder.process (brass * 0.22f, 20.0f * std::exp2 (oct), p.brassResonance) * 1.6f;
         }
         else ladder.reset();

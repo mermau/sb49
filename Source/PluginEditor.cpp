@@ -150,6 +150,14 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     addAndMakeVisible (stereoToggle);
     stereoAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, pid::stereoEnsembleId, stereoToggle);
 
+    retrigToggle.setButtonText ("BRASS RETRIG");
+    retrigToggle.setColour (juce::ToggleButton::textColourId, ui::cream);
+    retrigToggle.setColour (juce::ToggleButton::tickColourId, ui::ledOn);
+    retrigToggle.setColour (juce::ToggleButton::tickDisabledColourId, ui::creamDim);
+    retrigToggle.setTooltip ("Estensione: riattacco del brass a ogni nota anche suonando legato (l'originale riparte solo dal primo tasto)");
+    addAndMakeVisible (retrigToggle);
+    retrigAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, "brassRetrig", retrigToggle);
+
     // tastiera 49 tasti Do-Do
     keyboard.setAvailableRange (perf::kLowestNote, perf::kLowestNote + perf::kNumKeys - 1);
     keyboard.setScrollButtonsVisible (false);
@@ -213,6 +221,7 @@ void PerformerPanel::resized()
 
     pitchKnob->setBounds (944, 7, 44, 44);
     stereoToggle.setBounds (1032, 16, 128, 26);
+    retrigToggle.setBounds (744, 16, 124, 26);
 
     const int kbW = W - 2 * cheek;
     keyboard.setBounds (cheek, 338, kbW, H - 338 - 8);

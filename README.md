@@ -34,11 +34,12 @@ Copia il `.vst3` in:
 | P554/P558 | 12 TDA1008: divisori d'ottava, gate per tasto, scala resistiva 22K/39K/82K/150K | Onde quadre band-limited (polyBLEP) per ottava, sommate con gli stessi pesi → dente di sega "a gradini" 8' e 16'. Paraphonic su tutti i 49 tasti, con fase coerente tra le ottave come nel divide-down |
 | P559 | Crescendo sul *buss bar* (brass OFF) o sul 3080 (brass ON), sustain sul pin 7, EQ a 3 bande | Inviluppo comune sul gate (se suoni legato il crescendo non riparte). Il sustain è per tasto ed è disattivato con il BRASS inserito, come da manuale. L'EQ è a 3 filtri SVF |
 | P550/P551 | 3 linee BBD TCA350 modulate da un LFO a due velocità | 3 linee di ritardo con interpolazione Hermite, modulate a 0,63 Hz e 6,1 Hz con fasi a 120°, più i filtri anti-aliasing tipici delle BBD |
-| P557 | VCF a ladder di transistor 4 poli, inviluppo AD (C18 differenzia il gate), Range, Resonance | Ladder ZDF con saturazione, sovracampionata 2x. Inviluppo modellato sulla topologia del circuito: il nodo D1-D2-C18 scarica tramite DECAY, C2 si carica tramite ATTACK |
+| P557 | VCF a ladder di transistor 4 poli, inviluppo AD (C18 differenzia il gate comune: *single trigger*), Range, Resonance | Ladder ZDF con saturazione, sovracampionata 2x. RANGE fissa l'apertura di base del filtro e l'inviluppo si somma sopra, come su TR13. Come nell'originale, suonando legato l'attacco non riparte |
 | P556 | LFO triangolare, delay di 6-7 ms + salita, depth, VCF/FM, LED di velocità | Identico. Il LED sul selettore VCF/FM lampeggia alla velocità dell'LFO |
 | Pannello posteriore | PITCH ±2,5 ottave | Manopola PITCH ±15 semitoni (doppio clic = 0) |
 
 Estensioni non presenti nell'originale:
+- **BRASS RETRIG**: fa ripartire l'attacco del brass a ogni nuova nota anche suonando legato. Spento di default, come nell'originale.
 - **STEREO ENSEMBLE**: distribuisce le tre linee BBD sui due canali. L'originale è mono, quindi l'opzione è spenta di default.
 - Pitch bend ±2 semitoni.
 - La modwheel (CC1) agisce sulla profondità di modulazione.
