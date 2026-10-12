@@ -1,0 +1,44 @@
+# Compila SB-49 su un Mac di GitHub (Apple Silicon) e pubblica VST3 + AU + Standalone.
+# Avvio: a ogni push sul ramo main, oppure a mano da "Actions" > "Build macOS" > "Run workflow".
+name: Build macOS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-latest          # runner arm64 (Apple Silicon)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configura (binario universale arm64 + x86_64)
+        run: |
+          cmake -B build -G Xcode \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+            -DSB49_BUILD_TESTS=OFF
+
+      - name: Compila
+        run: |
+          cmake --build build --config Release \
+            --target SB49_VST3 SB49_AU SB49_Standalone -- -quiet
+
+      - name: Firma ad-hoc e impacchetta
+        run: |
+          OUT=build/SB49_artefacts/Release
+          mkdir -p dist
+          for b in "$OUT/VST3/SB-49 Ensemble.vst3" \
+                   "$OUT/AU/SB-49 Ensemble.component" \
+                   "$OUT/Standalone/SB-49 Ensemble.app"; do
+            codesign --force --deep --sign - "$b"
+            cp -R "$b" dist/
+          done
+          lipo -info "$OUT/VST3/SB-49 Ensemble.vst3/Contents/MacOS/SB-49 Ensemble"
+          cd dist && ditto -c -k --keepParent . ../SB49-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SB49-macOS
+          path: SB49-macOS.zip
