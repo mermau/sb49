@@ -1,4 +1,4 @@
-# Compila SB-49 su un Mac di GitHub (Apple Silicon) e pubblica VST3 + AU + Standalone.
+# Compila BIZARRE Entertainer su un Mac di GitHub (Apple Silicon) e pubblica VST3 + AU + Standalone.
 # Avvio: a ogni push sul ramo main, oppure a mano da "Actions" > "Build macOS" > "Run workflow".
 name: Build macOS
 
@@ -29,16 +29,16 @@ jobs:
         run: |
           OUT=build/SB49_artefacts/Release
           mkdir -p dist
-          for b in "$OUT/VST3/SB-49 Ensemble.vst3" \
-                   "$OUT/AU/SB-49 Ensemble.component" \
-                   "$OUT/Standalone/SB-49 Ensemble.app"; do
+          for b in "$OUT/VST3/BIZARRE Entertainer.vst3" \
+                   "$OUT/AU/BIZARRE Entertainer.component" \
+                   "$OUT/Standalone/BIZARRE Entertainer.app"; do
             codesign --force --deep --sign - "$b"
             cp -R "$b" dist/
           done
-          lipo -info "$OUT/VST3/SB-49 Ensemble.vst3/Contents/MacOS/SB-49 Ensemble"
-          cd dist && ditto -c -k --keepParent . ../SB49-macOS.zip
+          lipo -info "$OUT/VST3/BIZARRE Entertainer.vst3/Contents/MacOS/BIZARRE Entertainer"
+          cd dist && ditto -c -k --keepParent . ../BIZARRE-Entertainer-macOS.zip
 
       - uses: actions/upload-artifact@v4
         with:
-          name: SB49-macOS
-          path: SB49-macOS.zip
+          name: BIZARRE-Entertainer-macOS
+          path: BIZARRE-Entertainer-macOS.zip

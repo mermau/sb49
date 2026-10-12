@@ -10,6 +10,9 @@ inline const juce::Colour creamDim  { 0xffb9b19c };
 inline const juce::Colour ledOn     { 0xffff3b2a };
 inline const juce::Colour ledOff    { 0xff4a1612 };
 inline const juce::Colour learn     { 0xff38c7ff };
+inline const juce::Colour stripeOrange { 0xffe85d26 };
+inline const juce::Colour stripeAmber  { 0xfff4a330 };
+inline const juce::Colour stripeRed    { 0xffc4302b };
 }
 
 class PerformerLookAndFeel : public juce::LookAndFeel_V4

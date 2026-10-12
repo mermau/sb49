@@ -261,19 +261,33 @@ void PerformerPanel::paint (juce::Graphics& g)
     g.setGradientFill (pg);
     g.fillRect (face);
 
-    // intestazione: marchio originale del plugin
-    juce::Rectangle<float> badge (52.0f, 10.0f, 92.0f, 38.0f);
-    g.setColour (ui::cream);
-    g.drawRoundedRectangle (badge, 5.0f, 2.0f);
-    g.setFont (font (25.0f));
-    g.drawText ("SB-49", badge, juce::Justification::centred);
-    g.setFont (font (13.0f));
-    g.drawText (juce::String (juce::CharPointer_UTF8 ("STRING  \xc2\xb7  BRASS  ENSEMBLE")), juce::Rectangle<float> (156.0f, 12.0f, 330.0f, 18.0f),
-                juce::Justification::centredLeft);
-    g.setColour (ui::creamDim);
-    g.setFont (font (10.5f, false));
-    g.drawText (juce::String (juce::CharPointer_UTF8 ("divide-down paraphonic  \xc2\xb7  49 keys  \xc2\xb7  tasto destro su un controllo = MIDI Learn")),
-                juce::Rectangle<float> (156.0f, 30.0f, 520.0f, 16.0f), juce::Justification::centredLeft);
+    // intestazione: logo BIZARRE Entertainer (lettering originale, font OFL Monoton e Shrikhand)
+    {
+        static const auto monoton = juce::Typeface::createSystemTypefaceFor (BinaryData::MonotonRegular_ttf, BinaryData::MonotonRegular_ttfSize);
+        static const auto shrikhand = juce::Typeface::createSystemTypefaceFor (BinaryData::ShrikhandRegular_ttf, BinaryData::ShrikhandRegular_ttfSize);
+        const juce::Font big (juce::FontOptions (monoton).withHeight (50.0f));
+        const juce::Font script (juce::FontOptions (shrikhand).withHeight (27.0f));
+        const juce::String word ("BIZARRE");
+        const float wBig = juce::GlyphArrangement::getStringWidth (big, word);
+        g.setColour (ui::cream);
+        g.setFont (big);
+        g.drawText (word, juce::Rectangle<float> (48.0f, 4.0f, wBig + 10.0f, 52.0f), juce::Justification::centredLeft, false);
+
+        const float x = 50.0f + wBig + 18.0f;
+        const juce::Colour stripes[3] = { ui::stripeOrange, ui::stripeAmber, ui::stripeRed };
+        for (int i = 0; i < 3; ++i)
+        {
+            g.setColour (stripes[i]);
+            g.fillRect (juce::Rectangle<float> (x, 38.0f + (float) i * 5.0f, 715.0f - x, 3.0f));
+        }
+        g.setColour (ui::stripeOrange);
+        g.setFont (script);
+        g.drawText ("Entertainer", juce::Rectangle<float> (x, 3.0f, 260.0f, 36.0f), juce::Justification::centredLeft, false);
+        g.setColour (ui::creamDim);
+        g.setFont (font (9.5f, false));
+        g.drawText (juce::String (juce::CharPointer_UTF8 ("STRING \xc2\xb7 BRASS ENSEMBLE  \xc2\xb7  tasto destro = MIDI Learn")),
+                    juce::Rectangle<float> (x + 170.0f, 18.0f, 715.0f - x - 170.0f, 14.0f), juce::Justification::centredRight, false);
+    }
     g.setColour (ui::cream);
     g.setFont (font (10.0f));
     g.drawText ("PITCH", juce::Rectangle<float> (892.0f, 20.0f, 48.0f, 16.0f), juce::Justification::centredRight);

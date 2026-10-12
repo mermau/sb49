@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(SB49 VERSION 1.0.0 LANGUAGES C CXX)
+project(SB49 VERSION 1.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,8 +33,9 @@ endif()
 
 juce_add_plugin(SB49
     COMPANY_NAME "MM Instruments"
-    PRODUCT_NAME "SB-49 Ensemble"
-    BUNDLE_ID "it.mminstruments.sb49"
+    PRODUCT_NAME "BIZARRE Entertainer"
+    BUNDLE_ID "it.mminstruments.bizarre-entertainer"
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     PLUGIN_MANUFACTURER_CODE Mmin
     PLUGIN_CODE Sb49
     IS_SYNTH TRUE
@@ -47,6 +48,11 @@ juce_add_plugin(SB49
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
     AAX_CATEGORY AAX_ePlugInCategory_SWGenerators
     FORMATS ${SB49_FORMATS})
+
+juce_add_binary_data(SB49Data SOURCES
+    Resources/Monoton-Regular.ttf
+    Resources/Shrikhand-Regular.ttf)
+set_target_properties(SB49Data PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
 target_sources(SB49 PRIVATE
     Source/PluginProcessor.cpp
@@ -63,6 +69,7 @@ target_compile_definitions(SB49 PUBLIC
 
 target_link_libraries(SB49
     PRIVATE
+        SB49Data
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags

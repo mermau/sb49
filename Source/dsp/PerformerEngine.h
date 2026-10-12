@@ -1,4 +1,4 @@
-// SB-49 — emulazione del Crumar Performer a partire dagli schemi di servizio (P550-P559).
+// BIZARRE Entertainer — emulazione del Crumar Performer a partire dagli schemi di servizio (P550-P559).
 // Motore DSP indipendente da JUCE: compilabile e testabile da solo.
 #pragma once
 #include <array>

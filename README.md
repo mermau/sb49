@@ -1,4 +1,4 @@
-# SB-49 Ensemble — emulazione di string/brass machine divide-down (anni '70)
+# BIZARRE Entertainer — emulazione del Crumar Performer
 
 Plugin **VST3 / AAX / AU / Standalone** in **C++20 + JUCE 8**, che emula il circuito descritto nel manuale di servizio allegato (schede P550–P559).
 
@@ -107,3 +107,6 @@ tools/render_test.cpp                test offline → WAV
 ## Note legali
 - **JUCE 8** è distribuito sotto doppia licenza: AGPLv3, oppure licenza commerciale (gratuita sotto una certa soglia di fatturato). Per uso personale va bene così. Se lo distribuisci a codice chiuso, controlla i termini di JUCE.
 - Il plugin usa un nome e una grafica propri: niente marchi o loghi del costruttore originale. Se pensi di distribuirlo, mantieni questa scelta.
+
+## Nome, logo e icona
+Il nome BIZARRE Entertainer, il lettering e l'icona sono originali. I font sono Monoton (Vernon Adams) e Shrikhand (Jonny Pinhorn), entrambi con licenza SIL Open Font License 1.1: le licenze sono in `Resources/`. Il codice interno del plugin (Sb49) non è cambiato, così i progetti salvati con le versioni precedenti si riaprono normalmente.

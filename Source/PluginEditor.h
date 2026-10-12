@@ -1,6 +1,7 @@
 #pragma once
 #include "PluginProcessor.h"
 #include "PerformerLookAndFeel.h"
+#include "BinaryData.h"
 
 // Slider con menu MIDI Learn (tasto destro / ctrl-clic)
 class LearnSlider : public juce::Slider
