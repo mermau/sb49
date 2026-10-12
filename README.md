@@ -38,18 +38,21 @@ Ogni blocco è ricavato dai valori dei componenti degli schemi di servizio. I bl
 | P559 | Crescendo: TR3 generatore di corrente (DZ1 6,2 V) su C14 47 µF | Rampa **lineare** da 55 ms a 5,5 s (P4 100K lin), scarica in 47 ms (R43 1K). Il buss bar parte da circa il 37% del livello pieno |
 | P559 | Miscelatore 8'/16', preenfasi IC2, EQ a giratori, R22/C13 | Simulazione nodale del circuito vero e proprio (25 nodi, 4 operazionali e 3 giratori). Bande a 341 Hz, 881 Hz e 3,2 kHz; da −13 a +13 dB circa, piatto a metà corsa; potenziometri lineari come nell'originale |
 | P551 | Filtri d'ingresso e d'uscita delle BBD (Sallen-Key) | Ingresso 7,3 kHz Q 4,1 (nel circuito simulato), uscita 8,5 kHz Q 1,9. Insieme alla preenfasi danno una risposta piatta fino a 6 kHz con taglio netto sopra |
-| P550/P551 | Tre TCA350 (185 stadi), clock 22,6 kHz | Ritardo centrale 4,09 ms, tre fasi, LFO 0,6 Hz e 6 Hz |
+| P550/P551 | Tre TCA350 (185 stadi), clock 22,6 kHz | Ritardo centrale 4,09 ms. LFO lento 0,52 Hz (±6,5%, tre fasi a 120°), veloce 5,8 Hz (±1,5%, fasi a 90°): **tarati sui campioni del Performer originale** |
+| P554 | Uscita più acuta del TDA1008 (pin 2) | Impulso al 25% invece che onda quadra: **ricavato dai campioni** (8ª e 24ª armonica presenti, 16ª e 32ª assenti) |
 | P557 | Inviluppo brass: TR16, C19, TR15, C18, D1/D2, DECAY, ATTACK, C2, nodo di somma | Simulazione a livello di circuito con diodi e transistor. Riproduce il ritardo di circa 50 ms dell'apertura, la dipendenza della profondità dall'ATTACK e il trigger unico del gate comune |
 | P557 | Convertitore esponenziale TR13/TR14, RANGE (4 ottave), modulazione (R33 100K) | 17,9 mV/ottava. Somma di RANGE, inviluppo e LFO con i pesi delle resistenze |
 | P557 | Ladder 4 poli, 4 × 47 nF; ingresso tramite R13 150K / R8 56K | Modello non lineare a transistor (Huovilainen), sovracampionato 2x. Il segnale (~1 V) satura fortemente la coppia d'ingresso, come nell'originale |
 | P556 | LFO: integratore 22K/940 nF, Schmitt 10K/68K, RATE 1M antilog | Triangolo da 0,21 a 30 Hz. Il 3080 arrotonda i picchi. DELAY: reset 6,9 ms poi salita **lineare** da 0,58 a 6,4 s. FM fino a circa ±0,8 semitoni; VCF fino a circa ±4 ottave. Il LED segue l'uscita del comparatore (onda quadra) |
 | P559/P556 | Volumi 100K lineari | Curva lineare caricata, non logaritmica |
 
+### Taratura sui campioni originali
+Venti campioni di un Performer (La2, mono, MP3) sono stati analizzati misurando lo spettro di modulazione di frequenza e d'ampiezza di dieci armoniche. Velocità, profondità e fasi dei due LFO dell'ensemble sono state cercate in modo sistematico finché gli spettri del plugin coincidono con quelli dei campioni. Lo strumento di misura è in `tools/render_note.cpp`; le posizioni dei comandi durante la registrazione non sono note, quindi EQ, brass e trimmer non sono stati tarati su questi campioni.
+
 ### Valori non ricavabili dallo schema (scelte dichiarate)
 - **C12 (EQ)**: sullo schema si legge "47n". Con 47 nF gli acuti cadrebbero progressivamente; con 47 pF la catena è piatta come previsto dal progetto. Uso 47 pF.
 - **Trimmer di taratura**: RV1 FINE RANGE (P557) è tarato a 100 Hz con RANGE a 0. RV1 del crescendo (P559) ha l'offset scelto perché il buss bar arrivi a 6,2 V a fine rampa. RV2 FINE RES (P557) permette l'auto-oscillazione a risonanza massima.
 - **TDA1008**: il datasheet non è reperibile. Il rilascio senza sustain (8 ms) e la curva del SUSTAIN sono stimati; il massimo è limitato da 1 MΩ × 4,7 µF = 4,7 s.
-- **LFO dell'ensemble (P550)**: 0,6 Hz e 6 Hz come nel progetto ITT/TCA350 del Logan String Melody. La profondità della modulazione del clock è stimata.
 - **Livelli relativi archi/brass**: il guadagno dello stadio d'uscita del ladder non è ricavabile; i due livelli sono pareggiati.
 
 Estensioni non presenti nell'originale:

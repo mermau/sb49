@@ -40,6 +40,10 @@ struct Ensemble
     void prepare (double sr);
     void reset();
     void process (float x, float& outL, float& outR, bool stereo);
+    // modulazione del clock delle BBD (velocità in Hz, profondità relativa al ritardo centrale)
+    // tarati sui campioni del Performer originale (spettri di modulazione AM/FM, vedi README)
+    double slowHz = 0.52, fastHz = 5.8, slowDepth = 0.065, fastDepth = 0.015, slowSpacing = 1.0 / 3.0, fastSpacing = 0.25;
+    void updateRates() { incSlow = slowHz / sr; incFast = fastHz / sr; }
 private:
     std::vector<float> buf;
     int mask = 0, writePos = 0;
@@ -65,6 +69,7 @@ public:
     void process (float* L, float* R, int numSamples);
 
     // LED del pannello MODULATION: uscita del comparatore IC5 (onda quadra)
+    Ensemble& ensembleForTest() { return ensemble; }
     float getLfoMonitor() const { return lfoMonitor.load (std::memory_order_relaxed); }
 
 private:
@@ -88,7 +93,7 @@ private:
     int retrigHold = 0;
 
     std::array<double, 12> topFreq {}, counter {};
-    std::array<std::array<float, kNumOctaves>, 12> sq {};
+    std::array<std::array<float, kNumOctaves>, 12> sq {}, pulse {};
     std::array<bool, 12> classActive {};
 
     // crescendo (P559): tensione su C14 47µ

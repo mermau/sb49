@@ -11,6 +11,7 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr int kDivisors[12] = { 239, 451, 426, 402, 379, 358, 338, 319, 301, 284, 268, 253 };
 
 // pesi della scala di resistenze R1..R4 = 22K, 39K, 82K, 150K (P554)
+constexpr double kTopDuty = 0.25;
 constexpr float kW[4] = { 1.0f, 22.0f / 39.0f, 22.0f / 82.0f, 22.0f / 150.0f };
 
 // P554, tabella R5..R9 in serie ai condensatori 4,7µ dei tasti: R7 (terza ottava) varia con la nota
@@ -23,6 +24,16 @@ inline float polyBlep (double t, double dt)
     if (t < dt)       { t /= dt; return (float) (t + t - t * t - 1.0); }
     if (t > 1.0 - dt) { t = (t - 1.0) / dt; return (float) (t * t + t + t + 1.0); }
     return 0.0f;
+}
+
+// impulso unipolare 0..2 con duty d, a media nulla (accoppiamento capacitivo), band-limited
+inline float pulseBlep (double phase, double dt, double d)
+{
+    float v = (phase < d ? 2.0f : 0.0f) - (float) (2.0 * d);
+    v += polyBlep (phase, dt);
+    double p2 = phase - d; if (p2 < 0.0) p2 += 1.0;
+    v -= polyBlep (p2, dt);
+    return v;
 }
 
 inline float squareBlep (double phase, double dt)
@@ -49,9 +60,8 @@ void Ensemble::prepare (double sampleRate)
     while (size < (int) (sr * 0.02)) size <<= 1;
     buf.assign ((size_t) size, 0.0f);
     mask = size - 1;
-    // LFO a due velocità della scheda P550 (stessa architettura ITT/TCA350 del Logan String Melody)
-    incSlow = 0.6 / sr;
-    incFast = 6.0 / sr;
+    // LFO a due velocità della scheda P550: velocità e profondità tarate sui campioni originali
+    updateRates();
     // filtro d'uscita di ogni P551: Sallen-Key R24/R26 22K, C15 3n3, C13 220p → 8,5 kHz, Q 1,94
     for (auto& f : outFilter) f.setLowpass (8490.0, 1.94, sr);
     reset();
@@ -89,9 +99,9 @@ void Ensemble::process (float x, float& outL, float& outR, bool stereo)
     float o[3];
     for (int i = 0; i < 3; ++i)
     {
-        const double off = i / 3.0; // tre fasi (uscite L1, L2, L3 della P550)
-        const double ms = centerMs * (1.0 + 0.31 * std::sin (2.0 * kPi * (phSlow + off))
-                                          + 0.04 * std::sin (2.0 * kPi * (phFast + off)));
+        // uscite L1, L2, L3 della P550: fasi diverse dei due oscillatori
+        const double ms = centerMs * (1.0 + slowDepth * std::sin (2.0 * kPi * (phSlow + i * slowSpacing))
+                                          + fastDepth * std::sin (2.0 * kPi * (phFast + i * fastSpacing)));
         o[i] = (float) outFilter[(size_t) i].process (read (ms * 0.001 * sr));
     }
     writePos = (writePos + 1) & mask;
@@ -273,6 +283,7 @@ void Engine::process (float* L, float* R, int n)
                 const double div = (double) (1 << o);
                 const double ph = T / div - std::floor (T / div);
                 out[(size_t) o] = squareBlep (ph, std::min (inc / div, 0.5));
+                pulse[(size_t) c][(size_t) o] = pulseBlep (ph, std::min (inc / div, 0.5), kTopDuty);
             }
         }
 
@@ -283,8 +294,10 @@ void Engine::process (float* L, float* R, int n)
             if (k.level <= 0.0f) continue;
             const auto& o = sq[(size_t) k.cls];
             const int b = k.k8;
-            const float w8  = kW[0] * o[(size_t) b] + kW[1] * o[(size_t) (b - 1)] + kW[2] * o[(size_t) (b - 2)];
-            const float w16 = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * o[(size_t) (b - 2)];
+            // pin 2 del TDA1008 (piede più acuto): impulso al 25%, ricavato dai campioni del Performer
+            const float top = pulse[(size_t) k.cls][(size_t) (b - 2)];
+            const float w8  = kW[0] * o[(size_t) b] + kW[1] * o[(size_t) (b - 1)] + kW[2] * top;
+            const float w16 = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * top;
             s8 += k.level * w8;
             s16 += k.level * w16;
         }
