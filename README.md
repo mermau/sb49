@@ -28,15 +28,29 @@ Copia il `.vst3` in:
 
 ## Corrispondenza con il circuito originale
 
-| Scheda | Cosa fa nell'originale | Come è emulata |
+Ogni blocco è ricavato dai valori dei componenti degli schemi di servizio. I blocchi lineari e l'inviluppo brass sono stati verificati con ngspice: il modello C++ coincide con la simulazione entro 0,05 dB (catena archi) ed entro pochi millivolt (inviluppo).
+
+| Scheda | Circuito | Come è emulato |
 |---|---|---|
-| P555 | Oscillatore master 2,00024 MHz → MK50240 (top octave) | 12 contatori con i divisori reali del MK50240 (239…451). L'intonazione ha quindi le stesse piccole stonature dell'hardware |
-| P554/P558 | 12 TDA1008: divisori d'ottava, gate per tasto, scala resistiva 22K/39K/82K/150K | Onde quadre band-limited (polyBLEP) per ottava, sommate con gli stessi pesi → dente di sega "a gradini" 8' e 16'. Paraphonic su tutti i 49 tasti, con fase coerente tra le ottave come nel divide-down |
-| P559 | Crescendo sul *buss bar* (brass OFF) o sul 3080 (brass ON), sustain sul pin 7, EQ a 3 bande | Inviluppo comune sul gate (se suoni legato il crescendo non riparte). Il sustain è per tasto ed è disattivato con il BRASS inserito, come da manuale. L'EQ è a 3 filtri SVF |
-| P550/P551 | 3 linee BBD TCA350 modulate da un LFO a due velocità | 3 linee di ritardo con interpolazione Hermite, modulate a 0,63 Hz e 6,1 Hz con fasi a 120°, più i filtri anti-aliasing tipici delle BBD |
-| P557 | VCF a ladder di transistor 4 poli, inviluppo AD (C18 differenzia il gate comune: *single trigger*), Range, Resonance | Ladder ZDF con saturazione, sovracampionata 2x. RANGE fissa l'apertura di base del filtro e l'inviluppo si somma sopra, come su TR13. Come nell'originale, suonando legato l'attacco non riparte |
-| P556 | LFO triangolare, delay di 6-7 ms + salita, depth, VCF/FM, LED di velocità | Identico. Il LED sul selettore VCF/FM lampeggia alla velocità dell'LFO |
-| Pannello posteriore | PITCH ±2,5 ottave | Manopola PITCH ±15 semitoni (doppio clic = 0) |
+| P555 | Oscillatore master 2,00024 MHz → MK50240 | Divisori reali 239…451: stesse piccole stonature dell'originale |
+| P554 | 12 TDA1008, scala resistiva 22K/39K/82K/150K, sommatori IC13 (22K ∥ 2,2 nF) e IC14 (8K2 ∥ 10 nF) | Onde quadre band-limited con gli stessi pesi. Passa-basso dei sommatori: 3,29 kHz per gli archi, 1,94 kHz per il brass |
+| P554 | Attacco dei tasti: R5…R9 in serie a 4,7 µF | Costante per tasto dalla tabella: 4,7 ms nelle due ottave basse, da 4,7 a 18 ms nell'ottava centrale (R7 da 1K a 3K9), 22 ms in quella alta |
+| P559 | Crescendo: TR3 generatore di corrente (DZ1 6,2 V) su C14 47 µF | Rampa **lineare** da 55 ms a 5,5 s (P4 100K lin), scarica in 47 ms (R43 1K). Il buss bar parte da circa il 37% del livello pieno |
+| P559 | Miscelatore 8'/16', preenfasi IC2, EQ a giratori, R22/C13 | Simulazione nodale del circuito vero e proprio (25 nodi, 4 operazionali e 3 giratori). Bande a 341 Hz, 881 Hz e 3,2 kHz; da −13 a +13 dB circa, piatto a metà corsa; potenziometri lineari come nell'originale |
+| P551 | Filtri d'ingresso e d'uscita delle BBD (Sallen-Key) | Ingresso 7,3 kHz Q 4,1 (nel circuito simulato), uscita 8,5 kHz Q 1,9. Insieme alla preenfasi danno una risposta piatta fino a 6 kHz con taglio netto sopra |
+| P550/P551 | Tre TCA350 (185 stadi), clock 22,6 kHz | Ritardo centrale 4,09 ms, tre fasi, LFO 0,6 Hz e 6 Hz |
+| P557 | Inviluppo brass: TR16, C19, TR15, C18, D1/D2, DECAY, ATTACK, C2, nodo di somma | Simulazione a livello di circuito con diodi e transistor. Riproduce il ritardo di circa 50 ms dell'apertura, la dipendenza della profondità dall'ATTACK e il trigger unico del gate comune |
+| P557 | Convertitore esponenziale TR13/TR14, RANGE (4 ottave), modulazione (R33 100K) | 17,9 mV/ottava. Somma di RANGE, inviluppo e LFO con i pesi delle resistenze |
+| P557 | Ladder 4 poli, 4 × 47 nF; ingresso tramite R13 150K / R8 56K | Modello non lineare a transistor (Huovilainen), sovracampionato 2x. Il segnale (~1 V) satura fortemente la coppia d'ingresso, come nell'originale |
+| P556 | LFO: integratore 22K/940 nF, Schmitt 10K/68K, RATE 1M antilog | Triangolo da 0,21 a 30 Hz. Il 3080 arrotonda i picchi. DELAY: reset 6,9 ms poi salita **lineare** da 0,58 a 6,4 s. FM fino a circa ±0,8 semitoni; VCF fino a circa ±4 ottave. Il LED segue l'uscita del comparatore (onda quadra) |
+| P559/P556 | Volumi 100K lineari | Curva lineare caricata, non logaritmica |
+
+### Valori non ricavabili dallo schema (scelte dichiarate)
+- **C12 (EQ)**: sullo schema si legge "47n". Con 47 nF gli acuti cadrebbero progressivamente; con 47 pF la catena è piatta come previsto dal progetto. Uso 47 pF.
+- **Trimmer di taratura**: RV1 FINE RANGE (P557) è tarato a 100 Hz con RANGE a 0. RV1 del crescendo (P559) ha l'offset scelto perché il buss bar arrivi a 6,2 V a fine rampa. RV2 FINE RES (P557) permette l'auto-oscillazione a risonanza massima.
+- **TDA1008**: il datasheet non è reperibile. Il rilascio senza sustain (8 ms) e la curva del SUSTAIN sono stimati; il massimo è limitato da 1 MΩ × 4,7 µF = 4,7 s.
+- **LFO dell'ensemble (P550)**: 0,6 Hz e 6 Hz come nel progetto ITT/TCA350 del Logan String Melody. La profondità della modulazione del clock è stimata.
+- **Livelli relativi archi/brass**: il guadagno dello stadio d'uscita del ladder non è ricavabile; i due livelli sono pareggiati.
 
 Estensioni non presenti nell'originale:
 - **BRASS RETRIG**: fa ripartire l'attacco del brass a ogni nuova nota anche suonando legato. Spento di default, come nell'originale.

@@ -20,7 +20,7 @@ inline constexpr std::array<ParamInfo, 21> all {{
     { "brassOn",        "Brass On",           true,  0.0f  },
     { "brassVolume",    "Brass Volume",       false, 0.70f },
     { "stringsLow",     "Strings Low",        false, 0.50f },
-    { "stringsMid",     "Strings Mid",        false, 0.60f },
+    { "stringsMid",     "Strings Mid",        false, 0.50f },
     { "stringsHigh",    "Strings High",       false, 0.50f },
     { "strings16",      "Strings 16'",        true,  0.0f  },
     { "strings8",       "Strings 8'",         true,  1.0f  },

@@ -51,7 +51,8 @@ juce_add_plugin(SB49
 target_sources(SB49 PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/dsp/PerformerEngine.cpp)
+    Source/dsp/PerformerEngine.cpp
+    Source/dsp/Circuits.cpp)
 
 target_include_directories(SB49 PRIVATE Source)
 
@@ -71,5 +72,5 @@ target_link_libraries(SB49
 # --- test offline del motore (senza JUCE) ------------------------------------------------
 option(SB49_BUILD_TESTS "Compila il test di rendering offline" ON)
 if(SB49_BUILD_TESTS)
-    add_executable(sb49_render_test tools/render_test.cpp Source/dsp/PerformerEngine.cpp)
+    add_executable(sb49_render_test tools/render_test.cpp Source/dsp/PerformerEngine.cpp Source/dsp/Circuits.cpp)
 endif()
