@@ -30,6 +30,8 @@ int main (int argc, char** argv)
         std::string k = a.substr (0, eq); double v = std::stod (a.substr (eq + 1));
         if (k == "ensSlowHz") en.slowHz = v; if (k == "ensFastHz") en.fastHz = v;
         if (k == "ensSlowDepth") en.slowDepth = v; if (k == "ensFastDepth") en.fastDepth = v;
+        if (k == "brassBaseHz") e.brassBaseHz = v;
+        if (k == "brassDrive") e.brassDrive = v;
         if (k == "ensSlowSpacing") en.slowSpacing = v; if (k == "ensFastSpacing") en.fastSpacing = v;
     }
     en.updateRates();

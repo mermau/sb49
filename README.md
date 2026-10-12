@@ -39,15 +39,19 @@ Ogni blocco è ricavato dai valori dei componenti degli schemi di servizio. I bl
 | P559 | Miscelatore 8'/16', preenfasi IC2, EQ a giratori, R22/C13 | Simulazione nodale del circuito vero e proprio (25 nodi, 4 operazionali e 3 giratori). Bande a 341 Hz, 881 Hz e 3,2 kHz; da −13 a +13 dB circa, piatto a metà corsa; potenziometri lineari come nell'originale |
 | P551 | Filtri d'ingresso e d'uscita delle BBD (Sallen-Key) | Ingresso 7,3 kHz Q 4,1 (nel circuito simulato), uscita 8,5 kHz Q 1,9. Insieme alla preenfasi danno una risposta piatta fino a 6 kHz con taglio netto sopra |
 | P550/P551 | Tre TCA350 (185 stadi), clock 22,6 kHz | Ritardo centrale 4,09 ms. LFO lento 0,52 Hz (±6,5%, tre fasi a 120°), veloce 5,8 Hz (±1,5%, fasi a 90°): **tarati sui campioni del Performer originale** |
-| P554 | Uscita più acuta del TDA1008 (pin 2) | Impulso al 25% invece che onda quadra: **ricavato dai campioni** (8ª e 24ª armonica presenti, 16ª e 32ª assenti) |
 | P557 | Inviluppo brass: TR16, C19, TR15, C18, D1/D2, DECAY, ATTACK, C2, nodo di somma | Simulazione a livello di circuito con diodi e transistor. Riproduce il ritardo di circa 50 ms dell'apertura, la dipendenza della profondità dall'ATTACK e il trigger unico del gate comune |
 | P557 | Convertitore esponenziale TR13/TR14, RANGE (4 ottave), modulazione (R33 100K) | 17,9 mV/ottava. Somma di RANGE, inviluppo e LFO con i pesi delle resistenze |
-| P557 | Ladder 4 poli, 4 × 47 nF; ingresso tramite R13 150K / R8 56K | Modello non lineare a transistor (Huovilainen), sovracampionato 2x. Il segnale (~1 V) satura fortemente la coppia d'ingresso, come nell'originale |
+| P557 | Ladder 4 poli, 4 × 47 nF | Modello non lineare a transistor (Huovilainen), sovracampionato 2x. Livello d'ingresso **tarato sui campioni**: a filtro aperto le armoniche pari restano intatte, quindi il ladder lavora quasi in zona lineare (lo schema farebbe pensare a una forte saturazione) |
 | P556 | LFO: integratore 22K/940 nF, Schmitt 10K/68K, RATE 1M antilog | Triangolo da 0,21 a 30 Hz. Il 3080 arrotonda i picchi. DELAY: reset 6,9 ms poi salita **lineare** da 0,58 a 6,4 s. FM fino a circa ±0,8 semitoni; VCF fino a circa ±4 ottave. Il LED segue l'uscita del comparatore (onda quadra) |
 | P559/P556 | Volumi 100K lineari | Curva lineare caricata, non logaritmica |
 
 ### Taratura sui campioni originali
-Venti campioni di un Performer (La2, mono, MP3) sono stati analizzati misurando lo spettro di modulazione di frequenza e d'ampiezza di dieci armoniche. Velocità, profondità e fasi dei due LFO dell'ensemble sono state cercate in modo sistematico finché gli spettri del plugin coincidono con quelli dei campioni. Lo strumento di misura è in `tools/render_note.cpp`; le posizioni dei comandi durante la registrazione non sono note, quindi EQ, brass e trimmer non sono stati tarati su questi campioni.
+Venti campioni di un Performer (La2, mono, MP3) sono stati analizzati misurando lo spettro di modulazione di frequenza e d'ampiezza di dieci armoniche. Velocità, profondità e fasi dei due LFO dell'ensemble sono state cercate in modo sistematico finché gli spettri del plugin coincidono con quelli dei campioni. Altri quattro set AIFF senza compressione (archi e brass, Do1–Do5) hanno confermato:
+- **forme d'onda**: 8ª e 24ª armonica presenti, 16ª e 32ª assenti su archi 16' e brass: esattamente le quattro onde quadre al 50% dello schema. (Un'ipotesi di impulso al 25%, dedotta dagli MP3, è stata scartata);
+- **intonazione**: i Do risultano leggermente calanti, come previsto dal divisore 239 dell'MK50240;
+- **brass**: filtro aperto fino a 0,15–0,3 s e chiuso entro 0,5 s; a riposo si posa intorno a 130–150 Hz su tutte le note, coerente con la taratura di RV1. Le code di volume lineari dei campioni sono dissolvenze aggiunte in editing.
+
+Lo strumento di misura è in `tools/render_note.cpp`; le posizioni dei comandi durante la registrazione non sono note, quindi EQ, brass e trimmer non sono stati tarati su questi campioni.
 
 ### Valori non ricavabili dallo schema (scelte dichiarate)
 - **C12 (EQ)**: sullo schema si legge "47n". Con 47 nF gli acuti cadrebbero progressivamente; con 47 pF la catena è piatta come previsto dal progetto. Uso 47 pF.

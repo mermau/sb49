@@ -277,7 +277,7 @@ double Ladder::tick (double u, double g, double k)
 
 double Ladder::process (double vin, double cutoffHz, double resonance)
 {
-    cutoffHz = std::clamp (cutoffHz, 5.0, std::min (20000.0, fsOs * 0.22));
+    cutoffHz = std::clamp (cutoffHz, 0.5, std::min (20000.0, fsOs * 0.22));
     const double g = 1.0 - std::exp (-2.0 * 3.14159265358979 * cutoffHz / fsOs);
     const double k = 4.0 * std::clamp (resonance, 0.0, 1.0);
     const double u = vin / (2.0 * kVT); // coppia differenziale d'ingresso: tanh(V / 2VT)

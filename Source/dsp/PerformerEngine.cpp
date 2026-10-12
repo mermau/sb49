@@ -11,7 +11,7 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr int kDivisors[12] = { 239, 451, 426, 402, 379, 358, 338, 319, 301, 284, 268, 253 };
 
 // pesi della scala di resistenze R1..R4 = 22K, 39K, 82K, 150K (P554)
-constexpr double kTopDuty = 0.25;
+constexpr double kTopDuty = 0.5; // onda quadra come da schema (confermato dai campioni AIFF: h16/h32 assenti)
 constexpr float kW[4] = { 1.0f, 22.0f / 39.0f, 22.0f / 82.0f, 22.0f / 150.0f };
 
 // P554, tabella R5..R9 in serie ai condensatori 4,7µ dei tasti: R7 (terza ottava) varia con la nota
@@ -294,7 +294,6 @@ void Engine::process (float* L, float* R, int n)
             if (k.level <= 0.0f) continue;
             const auto& o = sq[(size_t) k.cls];
             const int b = k.k8;
-            // pin 2 del TDA1008 (piede più acuto): impulso al 25%, ricavato dai campioni del Performer
             const float top = pulse[(size_t) k.cls][(size_t) (b - 2)];
             const float w8  = kW[0] * o[(size_t) b] + kW[1] * o[(size_t) (b - 1)] + kW[2] * top;
             const float w16 = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * top;
@@ -322,10 +321,10 @@ void Engine::process (float* L, float* R, int n)
         // ---- BRASS: inviluppo a circuito, convertitore esponenziale TR13/TR14, ladder
         const double vSum = brassEnv.process (brassGate, p.brassDecay, p.brassAttack, p.brassRange, modVcf);
         // RV1 (FINE RANGE) è un trimmer: taratura scelta = 100 Hz con RANGE a 0 e inviluppo a riposo
-        const double fc = 100.0 * std::exp (vSum / circuit::kVT);
+        const double fc = brassBaseHz * std::exp (vSum / circuit::kVT);
         double brassOut = 0.0;
         if (p.brassOn)
-            brassOut = ladder.process (vBr * (56.0 / 206.0), fc, p.brassResonance) * 1.2; // R13 150K / R8 56K
+            brassOut = ladder.process (vBr * brassDrive, fc, p.brassResonance) * (0.272 / brassDrive);
         else ladder.reset();
 
         // ---- mixer IC3 (P559) e volume master
@@ -333,7 +332,7 @@ void Engine::process (float* L, float* R, int n)
         gBrass  += (float) ((tBrass - gBrass) * aSmooth);
         gMaster += (float) ((tMaster - gMaster) * aSmooth);
         // guadagno dello stadio d'uscita TR11/TR12 non ricavabile dallo schema: tarato per pareggiare gli archi
-        const double b = brassOut * gBrass * (6.8 / 27.0) * 11.0;
+        const double b = brassOut * gBrass * (6.8 / 27.0) * 6.5;
         const double oL = rails ((eL * gStr * 1.6 + b)) * gMaster * 0.1;
         const double oR = rails ((eR * gStr * 1.6 + b)) * gMaster * 0.1;
         if (R != nullptr) { L[s] = (float) oL; R[s] = (float) oR; }

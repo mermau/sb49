@@ -70,6 +70,10 @@ public:
 
     // LED del pannello MODULATION: uscita del comparatore IC5 (onda quadra)
     Ensemble& ensembleForTest() { return ensemble; }
+    double brassBaseHz = 100.0; // taratura di RV1 (FINE RANGE)
+    // volt in ingresso al ladder per volt sul bus brass. Dallo schema sarebbe 0,272 (R13 150K / R8 56K), ma i
+    // campioni AIFF mostrano armoniche pari intatte a filtro aperto: il ladder lavora quasi lineare.
+    double brassDrive = 0.06;
     float getLfoMonitor() const { return lfoMonitor.load (std::memory_order_relaxed); }
 
 private:
