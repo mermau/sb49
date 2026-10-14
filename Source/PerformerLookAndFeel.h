@@ -31,6 +31,24 @@ public:
 
     int getSliderThumbRadius (juce::Slider&) override { return 9; }
 
+    // spunte dell'intestazione: stesso carattere delle etichette del pannello
+    void drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool highlighted, bool) override
+    {
+        const auto r = b.getLocalBounds().toFloat();
+        const float box = 13.0f;
+        juce::Rectangle<float> tick (r.getX() + 2.0f, r.getCentreY() - box * 0.5f, box, box);
+        g.setColour (highlighted ? ui::cream : ui::creamDim);
+        g.drawRoundedRectangle (tick, 2.5f, 1.2f);
+        if (b.getToggleState())
+        {
+            g.setColour (ui::ledOn);
+            g.fillRoundedRectangle (tick.reduced (3.0f), 1.5f);
+        }
+        g.setColour (ui::cream);
+        g.setFont (juce::Font (juce::FontOptions (10.5f, juce::Font::bold)));
+        g.drawText (b.getButtonText(), r.withTrimmedLeft (box + 8.0f), juce::Justification::centredLeft, false);
+    }
+
     void drawLinearSlider (juce::Graphics& g, int x, int y, int w, int h, float sliderPos,
                            float minPos, float maxPos, juce::Slider::SliderStyle style, juce::Slider& s) override
     {

@@ -229,8 +229,8 @@ void PerformerPanel::resized()
     }
 
     pitchKnob->setBounds (944, 7, 44, 44);
-    stereoToggle.setBounds (1018, 4, 142, 24);
-    separateToggle.setBounds (1018, 29, 142, 24);
+    stereoToggle.setBounds (1022, 6, 128, 22);
+    separateToggle.setBounds (1022, 30, 128, 22);
     retrigToggle.setBounds (744, 16, 124, 26);
 
     const int kbW = W - 2 * cheek;
