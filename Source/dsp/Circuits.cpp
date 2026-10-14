@@ -77,8 +77,7 @@ void LinearCircuit::build()
 
 void LinearCircuit::tick (const double* sources)
 {
-    if (dirty) build();
-    const size_t n = (size_t) numNodes;
+    if (dirty) { build(); if (outNode >= 0) buildStateSpace(); }
     std::fill (rhs.begin(), rhs.end(), 0.0);
     for (auto& i : ins) rhs[(size_t) i.n] += i.g * sources[i.src];
     for (auto& c : caps)
@@ -86,8 +85,71 @@ void LinearCircuit::tick (const double* sources)
         if (c.a >= 0) rhs[(size_t) c.a] += c.J;
         if (c.b >= 0) rhs[(size_t) c.b] -= c.J;
     }
-    for (size_t i = 0; i < n; ++i) if (isAmpRow[i]) rhs[i] = 0.0;
+    solve();
+    for (auto& c : caps)
+    {
+        const double va = c.a >= 0 ? x[(size_t) c.a] : 0.0;
+        const double vb = c.b >= 0 ? x[(size_t) c.b] : 0.0;
+        c.J = 2.0 * c.G * (va - vb) - c.J;
+    }
+}
 
+void LinearCircuit::buildStateSpace()
+{
+    numInputs = 0;
+    for (auto& i : ins) numInputs = std::max (numInputs, i.src + 1);
+    const size_t K = caps.size(), U = (size_t) numInputs;
+    F.assign (K * K, 0.0); E.assign (K * U, 0.0); cOut.assign (K, 0.0); dOut.assign (U, 0.0); Jtmp.assign (K, 0.0);
+    // risposta a ciascuna corrente storica unitaria (ingressi nulli) e a ciascun ingresso unitario (stato nullo)
+    for (size_t col = 0; col < K + U; ++col)
+    {
+        std::fill (rhs.begin(), rhs.end(), 0.0);
+        if (col < K)
+        {
+            const auto& c = caps[col];
+            if (c.a >= 0) rhs[(size_t) c.a] += 1.0;
+            if (c.b >= 0) rhs[(size_t) c.b] -= 1.0;
+        }
+        else
+            for (auto& i : ins) if ((size_t) i.src == col - K) rhs[(size_t) i.n] += i.g;
+        solve();
+        for (size_t k = 0; k < K; ++k)
+        {
+            const auto& c = caps[k];
+            const double va = c.a >= 0 ? x[(size_t) c.a] : 0.0;
+            const double vb = c.b >= 0 ? x[(size_t) c.b] : 0.0;
+            double val = 2.0 * c.G * (va - vb);
+            if (col == k) val -= 1.0;
+            if (col < K) F[k * K + col] = val; else E[k * U + (col - K)] = val;
+        }
+        if (col < K) cOut[col] = x[(size_t) outNode]; else dOut[col - K] = x[(size_t) outNode];
+    }
+    std::fill (x.begin(), x.end(), 0.0);
+}
+
+double LinearCircuit::tickFast (const double* u)
+{
+    if (dirty) { build(); buildStateSpace(); }
+    const size_t K = caps.size(), U = (size_t) numInputs;
+    double y = 0.0;
+    for (size_t k = 0; k < K; ++k) y += cOut[k] * caps[k].J;
+    for (size_t i = 0; i < U; ++i) y += dOut[i] * u[i];
+    for (size_t k = 0; k < K; ++k)
+    {
+        double acc = 0.0;
+        const double* row = &F[k * K];
+        for (size_t j = 0; j < K; ++j) acc += row[j] * caps[j].J;
+        for (size_t i = 0; i < U; ++i) acc += E[k * U + i] * u[i];
+        Jtmp[k] = acc;
+    }
+    for (size_t k = 0; k < K; ++k) caps[k].J = Jtmp[k];
+    return y;
+}
+
+void LinearCircuit::solve()
+{
+    const size_t n = (size_t) numNodes;
+    for (size_t i = 0; i < n; ++i) if (isAmpRow[i]) rhs[i] = 0.0;
     // sostituzione in avanti e all'indietro
     for (size_t i = 0; i < n; ++i)
     {
@@ -100,12 +162,6 @@ void LinearCircuit::tick (const double* sources)
         double s = x[i];
         for (size_t j = i + 1; j < n; ++j) s -= M[i * n + j] * x[j];
         x[i] = s / M[i * n + i];
-    }
-    for (auto& c : caps)
-    {
-        const double va = c.a >= 0 ? x[(size_t) c.a] : 0.0;
-        const double vb = c.b >= 0 ? x[(size_t) c.b] : 0.0;
-        c.J = 2.0 * c.G * (va - vb) - c.J;
     }
 }
 
@@ -159,7 +215,7 @@ StringsChain::StringsChain()
     k.capacitor (S2, G, 3.0 * 120e-12);      // C14
     k.opamp (F, S2, F);                      // TR4 inseguitore di emettitore
     nOut = F;
-    nEq = OUT;
+    k.setOutputNode (F);
     setEq (0.5, 0.5, 0.5);
 }
 

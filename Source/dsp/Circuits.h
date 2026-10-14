@@ -33,6 +33,11 @@ public:
     void tick (const double* sources);
     double v (int n) const { return x[(size_t) n]; }
 
+    // Forma in spazio degli stati (equivalente esatto, molto più veloce): stato = correnti
+    // storiche dei condensatori. J' = F·J + E·u,  y = c·J + d·u  per un solo nodo d'uscita.
+    void setOutputNode (int n) { outNode = n; dirty = true; }
+    double tickFast (const double* sources);
+
 private:
     struct Res { int a, b; double g; };
     struct Cap { int a, b; double C, G, J; };
@@ -40,7 +45,9 @@ private:
     struct In  { int n; double g; int src; };
 
     void build();
+    void solve();
     void stamp (int a, int b, double g);
+    void buildStateSpace();
 
     int numNodes = 0;
     bool dirty = true;
@@ -52,6 +59,8 @@ private:
     std::vector<double> M, rhs, x;     // matrice LU (righe)
     std::vector<int> perm;
     std::vector<char> isAmpRow;
+    int outNode = -1, numInputs = 0;
+    std::vector<double> F, E, cOut, dOut, Jtmp; // matrici dello spazio degli stati
 };
 
 // ---------------------------------------------------------------------------------------
@@ -69,14 +78,12 @@ public:
     double process (double v8, double v16)
     {
         const double s[2] = { v8, v16 };
-        c.tick (s);
-        return c.v (nOut);
+        return c.tickFast (s);
     }
-    double eqOut() const { return c.v (nEq); }
 
 private:
     LinearCircuit c;
-    int nOut = 0, nEq = 0;
+    int nOut = 0;
     size_t rIdx[6] {}; // Ra/Rb delle tre bande
     double eq[3] { -1, -1, -1 };
 };

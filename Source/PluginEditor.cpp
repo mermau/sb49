@@ -150,6 +150,15 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     addAndMakeVisible (stereoToggle);
     stereoAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, pid::stereoEnsembleId, stereoToggle);
 
+    separateToggle.setButtonText ("USCITE SEPARATE");
+    separateToggle.setColour (juce::ToggleButton::textColourId, ui::cream);
+    separateToggle.setColour (juce::ToggleButton::tickColourId, ui::ledOn);
+    separateToggle.setColour (juce::ToggleButton::tickDisabledColourId, ui::creamDim);
+    separateToggle.setTooltip ("Come i jack posteriori: MAIN = archi, BRASS = brass (prima del volume master), SIGNAL = segnale grezzo. "
+                               "Nella DAW instrada le uscite aggiuntive del plugin su altre tracce.");
+    addAndMakeVisible (separateToggle);
+    separateAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, pid::separateOutputsId, separateToggle);
+
     retrigToggle.setButtonText ("BRASS RETRIG");
     retrigToggle.setColour (juce::ToggleButton::textColourId, ui::cream);
     retrigToggle.setColour (juce::ToggleButton::tickColourId, ui::ledOn);
@@ -220,7 +229,8 @@ void PerformerPanel::resized()
     }
 
     pitchKnob->setBounds (944, 7, 44, 44);
-    stereoToggle.setBounds (1032, 16, 128, 26);
+    stereoToggle.setBounds (1018, 4, 142, 24);
+    separateToggle.setBounds (1018, 29, 142, 24);
     retrigToggle.setBounds (744, 16, 124, 26);
 
     const int kbW = W - 2 * cheek;

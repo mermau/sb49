@@ -11,7 +11,6 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr int kDivisors[12] = { 239, 451, 426, 402, 379, 358, 338, 319, 301, 284, 268, 253 };
 
 // pesi della scala di resistenze R1..R4 = 22K, 39K, 82K, 150K (P554)
-constexpr double kTopDuty = 0.5; // onda quadra come da schema (confermato dai campioni AIFF: h16/h32 assenti)
 constexpr float kW[4] = { 1.0f, 22.0f / 39.0f, 22.0f / 82.0f, 22.0f / 150.0f };
 
 // P554, tabella R5..R9 in serie ai condensatori 4,7µ dei tasti: R7 (terza ottava) varia con la nota
@@ -24,16 +23,6 @@ inline float polyBlep (double t, double dt)
     if (t < dt)       { t /= dt; return (float) (t + t - t * t - 1.0); }
     if (t > 1.0 - dt) { t = (t - 1.0) / dt; return (float) (t * t + t + t + 1.0); }
     return 0.0f;
-}
-
-// impulso unipolare 0..2 con duty d, a media nulla (accoppiamento capacitivo), band-limited
-inline float pulseBlep (double phase, double dt, double d)
-{
-    float v = (phase < d ? 2.0f : 0.0f) - (float) (2.0 * d);
-    v += polyBlep (phase, dt);
-    double p2 = phase - d; if (p2 < 0.0) p2 += 1.0;
-    v -= polyBlep (p2, dt);
-    return v;
 }
 
 inline float squareBlep (double phase, double dt)
@@ -202,8 +191,10 @@ void Engine::setSustainPedal (bool down)
     refreshHeldCount();
 }
 
-void Engine::process (float* L, float* R, int n)
+void Engine::process (const Outputs& out, int n)
 {
+    float* L = out.mainL; float* R = out.mainR;
+    const bool separateBrass = out.brassL != nullptr;
     const auto& p = params;
     const double dt = 1.0 / sr;
 
@@ -258,6 +249,7 @@ void Engine::process (float* L, float* R, int n)
 
         // ---- condensatori dei tasti
         classActive.fill (false);
+        bool anyKey = false;
         for (auto& k : keys)
         {
             if (k.held() && busLevel > k.level) k.level += (busLevel - k.level) * k.aAtt;
@@ -266,7 +258,7 @@ void Engine::process (float* L, float* R, int n)
                 k.level -= k.level * aRel;
                 if (k.level < 1.0e-5f) k.level = 0.0f;
             }
-            if (k.level > 0.0f) classActive[(size_t) k.cls] = true;
+            if (k.level > 0.0f) { classActive[(size_t) k.cls] = true; anyKey = true; }
         }
 
         // ---- divisori
@@ -277,13 +269,12 @@ void Engine::process (float* L, float* R, int n)
             T += inc;
             if (T >= 1024.0) T -= 1024.0;
             if (! classActive[(size_t) c]) continue;
-            auto& out = sq[(size_t) c];
+            auto& oct = sq[(size_t) c];
             for (int o = 1; o < kNumOctaves; ++o)
             {
                 const double div = (double) (1 << o);
                 const double ph = T / div - std::floor (T / div);
-                out[(size_t) o] = squareBlep (ph, std::min (inc / div, 0.5));
-                pulse[(size_t) c][(size_t) o] = pulseBlep (ph, std::min (inc / div, 0.5), kTopDuty);
+                oct[(size_t) o] = squareBlep (ph, std::min (inc / div, 0.5));
             }
         }
 
@@ -294,9 +285,9 @@ void Engine::process (float* L, float* R, int n)
             if (k.level <= 0.0f) continue;
             const auto& o = sq[(size_t) k.cls];
             const int b = k.k8;
-            const float top = pulse[(size_t) k.cls][(size_t) (b - 2)];
-            const float w8  = kW[0] * o[(size_t) b] + kW[1] * o[(size_t) (b - 1)] + kW[2] * top;
-            const float w16 = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * top;
+            // onde quadre al 50% come da schema (confermato dai campioni AIFF: h16/h32 assenti)
+            const float w8  = kW[0] * o[(size_t) b] + kW[1] * o[(size_t) (b - 1)] + kW[2] * o[(size_t) (b - 2)];
+            const float w16 = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * o[(size_t) (b - 2)];
             s8 += k.level * w8;
             s16 += k.level * w16;
         }
@@ -305,7 +296,10 @@ void Engine::process (float* L, float* R, int n)
         const double vBr = busBrass.process (2.5 * (8.2 / 22.0) * s16);
 
         // ---- catena archi (P559 + ingresso P551), sovracampionata se serve
+        // la catena archi si ferma dopo 0,3 s di silenzio (le sue costanti di tempo sono di pochi ms)
+        silentSamples = anyKey ? 0 : silentSamples + 1;
         double vStr = 0.0;
+        if (silentSamples < (int) (0.3 * sr))
         {
             const double i8 = p.strings8 ? v8 : 0.0, i16 = p.strings16 ? v16 : 0.0;
             if (osFactor == 2)
@@ -315,6 +309,7 @@ void Engine::process (float* L, float* R, int n)
             else vStr = strings.process (i8, i16);
             lastV8 = i8; lastV16 = i16;
         }
+        else if (silentSamples == (int) (0.3 * sr)) { strings.reset(); lastV8 = lastV16 = 0.0; }
         float eL, eR;
         ensemble.process ((float) (vStr * stringsVca), eL, eR, p.stereoEnsemble);
 
@@ -333,10 +328,20 @@ void Engine::process (float* L, float* R, int n)
         gMaster += (float) ((tMaster - gMaster) * aSmooth);
         // guadagno dello stadio d'uscita TR11/TR12 non ricavabile dallo schema: tarato per pareggiare gli archi
         const double b = brassOut * gBrass * (6.8 / 27.0) * 6.5;
-        const double oL = rails ((eL * gStr * 1.6 + b)) * gMaster * 0.1;
-        const double oR = rails ((eR * gStr * 1.6 + b)) * gMaster * 0.1;
+        // jack BRASS a interruttore: se usato, il brass esce solo lì (prima del volume master, come l'originale)
+        const double bMain = separateBrass ? 0.0 : b;
+        const double oL = rails ((eL * gStr * 1.6 + bMain)) * gMaster * 0.1;
+        const double oR = rails ((eR * gStr * 1.6 + bMain)) * gMaster * 0.1;
         if (R != nullptr) { L[s] = (float) oL; R[s] = (float) oR; }
         else L[s] = (float) (0.5 * (oL + oR));
+        if (separateBrass)
+        {
+            const float ob = (float) (rails (b) * 0.1);
+            out.brassL[s] = ob;
+            if (out.brassR != nullptr) out.brassR[s] = ob;
+        }
+        // jack SIGNAL (EXTERNAL OUT, R14 4K7 dall'uscita di IC14): bus brass grezzo, senza filtro
+        if (out.signal != nullptr) out.signal[s] = (float) (rails (vBr) * 0.1);
 
         lfoMonitor.store (lfoPhase < 0.5 ? 0.0f : 1.0f, std::memory_order_relaxed); // comparatore IC5
     }

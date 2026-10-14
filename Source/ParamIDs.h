@@ -45,5 +45,6 @@ enum Index
 };
 
 inline constexpr const char* stereoEnsembleId = "stereoEnsemble";
+inline constexpr const char* separateOutputsId = "separateOutputs";
 inline constexpr int numMappable = (int) all.size();
 } // namespace pid

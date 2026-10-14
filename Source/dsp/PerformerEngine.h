@@ -66,14 +66,23 @@ public:
     void setModWheel (float v01)        { modWheel = v01; }
     void setSustainPedal (bool down);
 
-    void process (float* L, float* R, int numSamples);
+    // uscite come il pannello posteriore: MAIN, BRASS (jack a interruttore), SIGNAL (EXTERNAL OUT)
+    struct Outputs
+    {
+        float* mainL = nullptr; float* mainR = nullptr;
+        float* brassL = nullptr; float* brassR = nullptr; // se nulli, il brass va nel MAIN
+        float* signal = nullptr;
+    };
+    void process (const Outputs& out, int numSamples);
+    void process (float* L, float* R, int numSamples) { Outputs o; o.mainL = L; o.mainR = R; process (o, numSamples); }
 
-    // LED del pannello MODULATION: uscita del comparatore IC5 (onda quadra)
+    // accesso per gli strumenti di misura in tools/ (render_note)
     Ensemble& ensembleForTest() { return ensemble; }
     double brassBaseHz = 100.0; // taratura di RV1 (FINE RANGE)
     // volt in ingresso al ladder per volt sul bus brass. Dallo schema sarebbe 0,272 (R13 150K / R8 56K), ma i
     // campioni AIFF mostrano armoniche pari intatte a filtro aperto: il ladder lavora quasi lineare.
     double brassDrive = 0.06;
+    // LED del pannello MODULATION: uscita del comparatore IC5 (onda quadra)
     float getLfoMonitor() const { return lfoMonitor.load (std::memory_order_relaxed); }
 
 private:
@@ -94,10 +103,10 @@ private:
     std::array<Key, kNumKeys> keys {};
     int heldKeys = 0;
     bool prevGate = false, pedalDown = false, retrigPending = false;
-    int retrigHold = 0;
+    int retrigHold = 0, silentSamples = 0;
 
     std::array<double, 12> topFreq {}, counter {};
-    std::array<std::array<float, kNumOctaves>, 12> sq {}, pulse {};
+    std::array<std::array<float, kNumOctaves>, 12> sq {};
     std::array<bool, 12> classActive {};
 
     // crescendo (P559): tensione su C14 47µ

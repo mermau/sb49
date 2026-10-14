@@ -52,6 +52,7 @@ private:
     std::array<juce::RangedAudioParameter*, pid::numMappable> params {};
     std::array<std::atomic<float>*, pid::numMappable> raw {};
     std::atomic<float>* rawStereo = nullptr;
+    std::atomic<float>* rawSeparate = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PerformerAudioProcessor)
 };

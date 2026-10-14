@@ -42,3 +42,18 @@ jobs:
         with:
           name: BIZARRE-Entertainer-macOS
           path: BIZARRE-Entertainer-macOS.zip
+
+      - name: Validazione con pluginval (VST3 e AU) e auval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          PV=pluginval.app/Contents/MacOS/pluginval
+          mkdir -p ~/Library/Audio/Plug-Ins/VST3 ~/Library/Audio/Plug-Ins/Components
+          cp -R "dist/BIZARRE Entertainer.vst3" ~/Library/Audio/Plug-Ins/VST3/
+          cp -R "dist/BIZARRE Entertainer.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          $PV --strictness-level 7 --validate-in-process --skip-gui-tests \
+              --validate ~/Library/Audio/Plug-Ins/VST3/"BIZARRE Entertainer.vst3"
+          auval -v aumu Sb49 Mmin
+          $PV --strictness-level 7 --validate-in-process --skip-gui-tests \
+              --validate ~/Library/Audio/Plug-Ins/Components/"BIZARRE Entertainer.component"

@@ -110,3 +110,16 @@ tools/render_test.cpp                test offline → WAV
 
 ## Nome, logo e icona
 Il nome BIZARRE Entertainer, il lettering e l'icona sono originali. I font sono Monoton (Vernon Adams) e Shrikhand (Jonny Pinhorn), entrambi con licenza SIL Open Font License 1.1: le licenze sono in `Resources/`. Il codice interno del plugin (Sb49) non è cambiato, così i progetti salvati con le versioni precedenti si riaprono normalmente.
+
+## Uscite
+Come i jack del pannello posteriore:
+- **Main** (stereo): archi e brass mixati, dopo il volume master.
+- **Brass** (stereo): con l'opzione **USCITE SEPARATE** attiva, il brass esce solo qui, prima del volume master, come quando si collega il jack BRASS dell'originale. Se la DAW non attiva questa uscita, il brass resta nel Main.
+- **Signal** (mono): uscita EXTERNAL OUT, cioè il bus brass grezzo dei divisori, senza filtro né inviluppo, per trattarlo con altri synth o effetti.
+
+In Ableton Live: crea una traccia MIDI con il plugin, poi in un'altra traccia audio scegli in *Audio From* la traccia del plugin e l'uscita *Brass* (o *Signal*).
+
+## Verifiche
+- **pluginval** (livello 7) su VST3 e AU, più **auval**, a ogni build macOS su GitHub.
+- **Aliasing**: residuo degli oscillatori sotto i −59 dB sulla nota più acuta a 44,1 kHz.
+- **CPU**: la catena archi usa la forma in spazio degli stati del circuito (identica alla simulazione nodale) e si ferma dopo 0,3 s di silenzio. Otto note di archi e brass: circa l'8% di un core.

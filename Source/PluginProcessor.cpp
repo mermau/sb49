@@ -2,7 +2,10 @@
 #include "PluginEditor.h"
 
 PerformerAudioProcessor::PerformerAudioProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor (BusesProperties()
+                          .withOutput ("Main", juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Brass", juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Signal", juce::AudioChannelSet::mono(), true)),
       apvts (*this, nullptr, "STATE", createLayout())
 {
     for (int i = 0; i < pid::numMappable; ++i)
@@ -11,6 +14,7 @@ PerformerAudioProcessor::PerformerAudioProcessor()
         raw[(size_t) i] = apvts.getRawParameterValue (pid::all[(size_t) i].id);
     }
     rawStereo = apvts.getRawParameterValue (pid::stereoEnsembleId);
+    rawSeparate = apvts.getRawParameterValue (pid::separateOutputsId);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::createLayout()
@@ -33,13 +37,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::cre
     }
     layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { pid::stereoEnsembleId, 1 },
                                                             "Stereo Ensemble", false));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { pid::separateOutputsId, 1 },
+                                                            "Separate Outputs", false,
+                                                            juce::AudioParameterBoolAttributes().withAutomatable (false)));
     return layout;
 }
 
 bool PerformerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     const auto out = layouts.getMainOutputChannelSet();
-    return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
+    if (out != juce::AudioChannelSet::mono() && out != juce::AudioChannelSet::stereo()) return false;
+    for (int i = 1; i < layouts.outputBuses.size(); ++i)
+    {
+        const auto& set = layouts.outputBuses.getReference (i);
+        if (! set.isDisabled() && set != juce::AudioChannelSet::mono() && set != juce::AudioChannelSet::stereo())
+            return false;
+    }
+    return true;
 }
 
 void PerformerAudioProcessor::prepareToPlay (double sampleRate, int)
@@ -106,8 +120,30 @@ void PerformerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     engine.setParams (readParams());
 
-    float* L = buffer.getWritePointer (0);
-    float* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : nullptr;
+    auto mainBus = getBusBuffer (buffer, false, 0);
+    float* L = mainBus.getWritePointer (0);
+    float* R = mainBus.getNumChannels() > 1 ? mainBus.getWritePointer (1) : nullptr;
+
+    // BRASS separato solo se richiesto e se l'host ha attivato il bus (altrimenti resta nel MAIN)
+    float* bL = nullptr; float* bR = nullptr; float* sig = nullptr;
+    if (getBusCount (false) > 1 && getBus (false, 1)->isEnabled() && rawSeparate->load() > 0.5f)
+    {
+        auto bb = getBusBuffer (buffer, false, 1);
+        if (bb.getNumChannels() > 0) { bL = bb.getWritePointer (0); bR = bb.getNumChannels() > 1 ? bb.getWritePointer (1) : nullptr; }
+    }
+    if (getBusCount (false) > 2 && getBus (false, 2)->isEnabled())
+    {
+        auto sb = getBusBuffer (buffer, false, 2);
+        if (sb.getNumChannels() > 0) sig = sb.getWritePointer (0);
+    }
+    auto render = [&] (int from, int len)
+    {
+        perf::Engine::Outputs o;
+        o.mainL = L + from; o.mainR = R ? R + from : nullptr;
+        o.brassL = bL ? bL + from : nullptr; o.brassR = bR ? bR + from : nullptr;
+        o.signal = sig ? sig + from : nullptr;
+        engine.process (o, len);
+    };
 
     int pos = 0;
     for (const auto meta : midi) // rendering accurato al campione tra un evento e l'altro
@@ -115,12 +151,18 @@ void PerformerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         const int at = juce::jlimit (0, n, meta.samplePosition);
         if (at > pos)
         {
-            engine.process (L + pos, R ? R + pos : nullptr, at - pos);
+            render (pos, at - pos);
             pos = at;
         }
         handleMidi (meta.getMessage());
     }
-    if (pos < n) engine.process (L + pos, R ? R + pos : nullptr, n - pos);
+    if (pos < n) render (pos, n - pos);
+    // il bus SIGNAL è mono: se l'host lo vuole stereo, copia
+    if (sig != nullptr && getBusBuffer (buffer, false, 2).getNumChannels() > 1)
+    {
+        auto sb = getBusBuffer (buffer, false, 2);
+        sb.copyFrom (1, 0, sb, 0, 0, n);
+    }
     midi.clear();
 }
 
