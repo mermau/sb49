@@ -25,6 +25,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::cre
         const juce::ParameterID id { p.id, 1 };
         if (p.isBool)
             layout.add (std::make_unique<juce::AudioParameterBool> (id, p.name, p.defaultValue > 0.5f));
+        else if (juce::String (p.id) == "transpose")
+            layout.add (std::make_unique<juce::AudioParameterChoice> (id, p.name,
+                juce::StringArray { "Down", "Normal", "Up" }, 1));
         else if (juce::String (p.id) == "pitch")
             layout.add (std::make_unique<juce::AudioParameterFloat> (id, p.name,
                 juce::NormalisableRange<float> (-15.0f, 15.0f), 0.0f,
@@ -78,6 +81,7 @@ perf::Params PerformerAudioProcessor::readParams() const
     p.modDepth = v (pid::modDepth);         p.modToVcf = v (pid::modToVcf) > 0.5f;
     p.masterVolume = v (pid::masterVolume); p.pitchSemitones = v (pid::pitch);
     p.brassRetrig = v (pid::brassRetrig) > 0.5f;
+    p.stringsTranspose = juce::jlimit (-1, 1, juce::roundToInt (v (pid::transpose)) - 1);
     p.stereoEnsemble = rawStereo->load() > 0.5f;
     return p;
 }

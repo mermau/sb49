@@ -59,6 +59,8 @@ Lo strumento di misura è in `tools/render_note.cpp`; le posizioni dei comandi d
 - **TDA1008**: il datasheet non è reperibile. Il rilascio senza sustain (8 ms) e la curva del SUSTAIN sono stimati; il massimo è limitato da 1 MΩ × 4,7 µF = 4,7 s.
 - **Livelli relativi archi/brass**: il guadagno dello stadio d'uscita del ladder non è ricavabile; i due livelli sono pareggiati.
 
+Dalla **versione B** del Performer (revisione successiva al manuale usato qui) viene il deviatore **TRANSPOSE** sotto i pulsanti 16' e 8': sposta gli archi di un'ottava in giù (DOWN) o in su (UP), cioè fino ai registri 32' e 4'. Il brass non cambia. In posizione centrale il comportamento è quello della versione A.
+
 Estensioni non presenti nell'originale:
 - **BRASS RETRIG**: fa ripartire l'attacco del brass a ogni nuova nota anche suonando legato. Spento di default, come nell'originale.
 - **STEREO ENSEMBLE**: distribuisce le tre linee BBD sui due canali. L'originale è mono, quindi l'opzione è spenta di default.

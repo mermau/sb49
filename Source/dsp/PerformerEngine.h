@@ -24,6 +24,7 @@ struct Params
     // STRINGS (P554/P559)
     float stringsLow = 0.5f, stringsMid = 0.5f, stringsHigh = 0.5f;
     bool  strings16 = false, strings8 = true;
+    int   stringsTranspose = 0; // -1 / 0 / +1 ottava (switch TRANSPOSE della versione B)
     float crescendo = 0.15f, sustain = 0.35f, stringsVolume = 0.75f;
     // MODULATION (P556)
     float modDelay = 0.3f, modRate = 0.45f, modDepth = 0.0f;

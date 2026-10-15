@@ -34,6 +34,21 @@ private:
     const int paramIndex;
 };
 
+// Deviatore TRANSPOSE a tre posizioni (DOWN / normale / UP) sotto i pulsanti 16' e 8'
+class TransposeSwitch : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    explicit TransposeSwitch (PerformerAudioProcessor& p);
+    void paint (juce::Graphics& g) override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    bool learning = false;
+private:
+    PerformerAudioProcessor& proc;
+    juce::ParameterAttachment attachment;
+    int position = 1;
+    juce::Rectangle<float> slot() const;
+};
+
 class PerformerPanel : public juce::Component
 {
 public:
@@ -73,6 +88,7 @@ private:
     juce::ToggleButton stereoToggle, retrigToggle, separateToggle;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> stereoAtt, retrigAtt, separateAtt;
     PerfButton* modLedButton = nullptr;
+    std::unique_ptr<TransposeSwitch> transposeSwitch;
 
     juce::MidiKeyboardComponent keyboard;
     int lastMapVersion = -1;

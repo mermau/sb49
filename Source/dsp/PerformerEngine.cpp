@@ -270,7 +270,7 @@ void Engine::process (const Outputs& out, int n)
             if (T >= 1024.0) T -= 1024.0;
             if (! classActive[(size_t) c]) continue;
             auto& oct = sq[(size_t) c];
-            for (int o = 1; o < kNumOctaves; ++o)
+            for (int o = 0; o < kNumOctaves; ++o)
             {
                 const double div = (double) (1 << o);
                 const double ph = T / div - std::floor (T / div);
@@ -279,21 +279,26 @@ void Engine::process (const Outputs& out, int n)
         }
 
         // ---- uscite TDA1008 (±2,5 V per tasto a buss bar pieno) sommate dalla scala resistiva
-        double s8 = 0.0, s16 = 0.0;
+        double s8 = 0.0, s16 = 0.0, sBr = 0.0;
         for (auto& k : keys)
         {
             if (k.level <= 0.0f) continue;
             const auto& o = sq[(size_t) k.cls];
             const int b = k.k8;
+            // TRANSPOSE (versione B): gli archi prendono le uscite del divisore un'ottava sopra o sotto;
+            // il brass resta sul 16' normale
+            const int bs = std::clamp (b - p.stringsTranspose, 2, kNumOctaves - 2);
             // onde quadre al 50% come da schema (confermato dai campioni AIFF: h16/h32 assenti)
-            const float w8  = kW[0] * o[(size_t) b] + kW[1] * o[(size_t) (b - 1)] + kW[2] * o[(size_t) (b - 2)];
-            const float w16 = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * o[(size_t) (b - 2)];
+            const float w8  = kW[0] * o[(size_t) bs] + kW[1] * o[(size_t) (bs - 1)] + kW[2] * o[(size_t) (bs - 2)];
+            const float w16 = kW[0] * o[(size_t) (bs + 1)] + kW[1] * o[(size_t) bs] + kW[2] * o[(size_t) (bs - 1)] + kW[3] * o[(size_t) (bs - 2)];
+            const float wBr = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * o[(size_t) (b - 2)];
             s8 += k.level * w8;
             s16 += k.level * w16;
+            sBr += k.level * wBr;
         }
         const double v8 = bus8.process (2.5 * s8);
         const double v16 = bus16.process (2.5 * s16);
-        const double vBr = busBrass.process (2.5 * (8.2 / 22.0) * s16);
+        const double vBr = busBrass.process (2.5 * (8.2 / 22.0) * sBr);
 
         // ---- catena archi (P559 + ingresso P551), sovracampionata se serve
         // la catena archi si ferma dopo 0,3 s di silenzio (le sue costanti di tempo sono di pochi ms)

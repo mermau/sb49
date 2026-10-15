@@ -99,6 +99,55 @@ void PerfButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 }
 
 // ---------------------------------------------------------------------------------------
+TransposeSwitch::TransposeSwitch (PerformerAudioProcessor& p)
+    : proc (p),
+      attachment (*p.getParam (pid::transpose), [this] (float v) { position = juce::jlimit (0, 2, juce::roundToInt (v)); repaint(); }, nullptr)
+{
+    attachment.sendInitialUpdate();
+    setTooltip ("TRANSPOSE (Performer versione B): archi un'ottava sotto, normali o un'ottava sopra");
+}
+
+juce::Rectangle<float> TransposeSwitch::slot() const
+{
+    return juce::Rectangle<float> (getWidth() * 0.5f - 27.0f, 21.0f, 54.0f, 14.0f);
+}
+
+void TransposeSwitch::paint (juce::Graphics& g)
+{
+    const auto r = slot();
+    g.setColour (ui::cream);
+    g.setFont (font (8.5f));
+    g.drawText ("TRANSPOSE", getLocalBounds().removeFromTop (16), juce::Justification::centred);
+    g.setFont (font (7.5f));
+    g.drawText ("DOWN", juce::Rectangle<float> (0.0f, r.getY(), r.getX() - 4.0f, r.getHeight()), juce::Justification::centredRight);
+    g.drawText ("UP", juce::Rectangle<float> (r.getRight() + 4.0f, r.getY(), 30.0f, r.getHeight()), juce::Justification::centredLeft);
+    g.setColour (juce::Colours::black);
+    g.fillRoundedRectangle (r, 3.0f);
+    g.setColour (ui::creamDim);
+    g.drawRoundedRectangle (r, 3.0f, 1.0f);
+    for (int i = 0; i < 3; ++i)  // tacche delle tre posizioni
+        g.fillRect (juce::Rectangle<float> (r.getX() + 9.0f + i * 18.0f - 0.5f, r.getBottom() + 2.0f, 1.0f, 3.0f));
+    juce::Rectangle<float> lever (r.getX() + 2.0f + position * 18.0f, r.getY() + 2.0f, 14.0f, r.getHeight() - 4.0f);
+    g.setColour (ui::cream);
+    g.fillRoundedRectangle (lever, 2.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.drawLine (lever.getCentreX(), lever.getY() + 2.0f, lever.getCentreX(), lever.getBottom() - 2.0f, 1.0f);
+    if (learning)
+    {
+        g.setColour (ui::learn);
+        g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), 4.0f, 2.0f);
+    }
+}
+
+void TransposeSwitch::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu()) { showLearnMenu (proc, pid::transpose, this); return; }
+    const auto r = slot();
+    const int pos = juce::jlimit (0, 2, (int) ((e.position.x - r.getX()) / 18.0f));
+    attachment.setValueAsCompleteGesture ((float) pos);
+}
+
+// ---------------------------------------------------------------------------------------
 PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     : proc (p), keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
@@ -132,6 +181,9 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     // MASTER
     sections.push_back ({ "MASTER", (int) slots.size(), 1, {} });
     addSlider (pid::masterVolume, "VOLUME");
+
+    transposeSwitch = std::make_unique<TransposeSwitch> (proc);
+    addAndMakeVisible (*transposeSwitch);
 
     // pannello posteriore: PITCH e opzione stereo
     pitchKnob = std::make_unique<LearnSlider> (proc, pid::pitch);
@@ -229,6 +281,11 @@ void PerformerPanel::resized()
     }
 
     pitchKnob->setBounds (944, 7, 44, 44);
+    {   // deviatore TRANSPOSE sotto i pulsanti 16' e 8'
+        juce::Rectangle<int> a;
+        for (auto& s : slots) if (s.paramIndex == pid::strings16 || s.paramIndex == pid::strings8) a = a.isEmpty() ? s.area : a.getUnion (s.area);
+        transposeSwitch->setBounds (a.getX() - 6, 226, a.getWidth() + 12, 42);
+    }
     stereoToggle.setBounds (1022, 6, 128, 22);
     separateToggle.setBounds (1022, 30, 128, 22);
     retrigToggle.setBounds (744, 16, 124, 26);
@@ -293,10 +350,14 @@ void PerformerPanel::paint (juce::Graphics& g)
         g.setColour (ui::stripeOrange);
         g.setFont (script);
         g.drawText ("Entertainer", juce::Rectangle<float> (x, 3.0f, 260.0f, 36.0f), juce::Justification::centredLeft, false);
+        const float wEnt = juce::GlyphArrangement::getStringWidth (script, "Entertainer");
+        g.setColour (ui::cream);
+        g.setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::italic)));
+        g.drawText ("by Collateral Effects", juce::Rectangle<float> (x + wEnt + 8.0f, 19.0f, 130.0f, 14.0f), juce::Justification::centredLeft, false);
         g.setColour (ui::creamDim);
         g.setFont (font (9.5f, false));
-        g.drawText (juce::String (juce::CharPointer_UTF8 ("STRING \xc2\xb7 BRASS ENSEMBLE  \xc2\xb7  tasto destro = MIDI Learn")),
-                    juce::Rectangle<float> (x + 170.0f, 18.0f, 715.0f - x - 170.0f, 14.0f), juce::Justification::centredRight, false);
+        g.drawText ("tasto destro = MIDI Learn",
+                    juce::Rectangle<float> (x + wEnt + 140.0f, 19.0f, 715.0f - x - wEnt - 140.0f, 14.0f), juce::Justification::centredRight, false);
     }
     g.setColour (ui::cream);
     g.setFont (font (10.0f));
@@ -365,6 +426,7 @@ void PerformerPanel::refresh()
         else if (auto* b = dynamic_cast<PerfButton*> (slot.comp)) update (b, slot.paramIndex);
     }
     update (pitchKnob.get(), pid::pitch);
+    update (transposeSwitch.get(), pid::transpose);
 }
 
 // ---------------------------------------------------------------------------------------
