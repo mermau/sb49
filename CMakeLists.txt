@@ -32,7 +32,7 @@ if(AAX_SDK_PATH)
 endif()
 
 juce_add_plugin(SB49
-    COMPANY_NAME "MM Instruments"
+    COMPANY_NAME "Collateral Effects"
     PRODUCT_NAME "BIZARRE Entertainer"
     BUNDLE_ID "it.mminstruments.bizarre-entertainer"
     ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
