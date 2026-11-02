@@ -26,11 +26,12 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 4.0; }
 
-    // i "program" esposti all'host sono i preset di fabbrica (elenco fisso)
-    int getNumPrograms() override { return PresetManager::numFactory(); }
-    int getCurrentProgram() override { return presets.currentIsFactory() ? presets.getCurrentIndex() : 0; }
-    void setCurrentProgram (int i) override { presets.load (i); }
-    const juce::String getProgramName (int i) override { return PresetManager::factoryName (i); }
+    // nessun elenco "program" esposto all'host: i preset si gestiscono dalla barra PRESET
+    // e con i Program Change MIDI (un parametro Program VST3 interferirebbe con il ripristino dello stato)
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const juce::String getProgramName (int) override { return presets.getCurrentName(); }
     void changeProgramName (int, const juce::String&) override {}
 
     void getStateInformation (juce::MemoryBlock& destData) override;
