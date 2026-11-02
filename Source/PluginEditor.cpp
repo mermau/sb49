@@ -464,7 +464,7 @@ void PerformerPanel::paint (juce::Graphics& g)
     {
         auto band = [] (juce::Rectangle<int> r, int y, int h) { return r.withY (y).withHeight (h).toFloat(); };
         drawRuledHeading (g, "FILTER CONTROLS", band (spanOf (pid::brassAttack, pid::brassResonance), 88, 12), 8.6f);
-        drawRuledHeading (g, "E. G. CONTROL", band (spanOf (pid::stringsLow, pid::stringsHigh), 88, 12), 8.6f);
+        drawRuledHeading (g, "E. Q. CONTROL", band (spanOf (pid::stringsLow, pid::stringsHigh), 88, 12), 8.6f);
         drawRuledHeading (g, "LENGTH", band (spanOf (pid::crescendo, pid::sustain), 273, 10), 7.8f);
     }
 
