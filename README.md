@@ -113,6 +113,17 @@ tools/render_test.cpp                test offline → WAV
 ## Nome, logo e icona
 Il nome BIZARRE Entertainer, il lettering e l'icona sono originali. I font sono Monoton (Vernon Adams) e Shrikhand (Jonny Pinhorn), entrambi con licenza SIL Open Font License 1.1: le licenze sono in `Resources/`. Il codice interno del plugin (Sb49) non è cambiato, così i progetti salvati con le versioni precedenti si riaprono normalmente.
 
+## Preset
+
+Barra PRESET nell'intestazione: frecce = precedente/successivo, clic sul nome = elenco, Salva, Salva come, Elimina, Mostra cartella.
+I preset contengono solo il suono (i 22 parametri + Stereo Ensemble): la mappa MIDI e la scelta delle uscite restano invariate.
+Program Change MIDI n seleziona il preset n+1 dell'elenco (prima i 15 di fabbrica, poi quelli utente in ordine alfabetico).
+
+- Cartella utente (macOS): `~/Library/Audio/Presets/Collateral Effects/BIZARRE Entertainer/` (file `.bizpreset`, XML).
+- Preset di fabbrica (ispirati agli usi documentati del Performer: archi "lush and swirly", Duran Duran degli esordi, Saint Etienne, brass polifonico):
+  Performer Strings (= valori di default), Full Ensemble 16+8, Slow Swell, Bright Violins, Dark Cellos, New Wave Strings,
+  Indie Pop Strings, Vibrato Strings, Space Pad, Classic Brass, Brass Stab, Slow Brass, Resonant Sweep, Wah Brass, Strings & Brass.
+
 ## Uscite
 Come i jack del pannello posteriore:
 - **Main** (stereo): archi e brass mixati, dopo il volume master.

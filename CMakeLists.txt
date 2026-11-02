@@ -57,6 +57,7 @@ set_target_properties(SB49Data PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 target_sources(SB49 PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/PresetManager.cpp
     Source/dsp/PerformerEngine.cpp
     Source/dsp/Circuits.cpp)
 
@@ -80,4 +81,12 @@ target_link_libraries(SB49
 option(SB49_BUILD_TESTS "Compila il test di rendering offline" ON)
 if(SB49_BUILD_TESTS)
     add_executable(sb49_render_test tools/render_test.cpp Source/dsp/PerformerEngine.cpp Source/dsp/Circuits.cpp)
+endif()
+
+if(SB49_LOCAL_TESTS)
+    juce_add_console_app(sb49_preset_test)
+    target_sources(sb49_preset_test PRIVATE tools/preset_test.cpp)
+    target_include_directories(sb49_preset_test PRIVATE Source)
+    target_compile_definitions(sb49_preset_test PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+    target_link_libraries(sb49_preset_test PRIVATE SB49 SB49Data juce::juce_audio_utils juce::juce_audio_processors juce::juce_dsp)
 endif()

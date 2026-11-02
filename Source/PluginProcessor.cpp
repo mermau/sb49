@@ -108,6 +108,11 @@ void PerformerAudioProcessor::handleMidi (const juce::MidiMessage& m)
     else if (m.isSustainPedalOn())    engine.setSustainPedal (true);
     else if (m.isSustainPedalOff())   engine.setSustainPedal (false);
     else if (m.isAllNotesOff() || m.isAllSoundOff()) engine.allNotesOff();
+    else if (m.isProgramChange())
+    {
+        pendingProgram.store (m.getProgramChangeNumber());
+        triggerAsyncUpdate();
+    }
     else if (m.isController())
     {
         if (m.getControllerNumber() == 1) engine.setModWheel ((float) m.getControllerValue() / 127.0f);
@@ -170,11 +175,21 @@ void PerformerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     midi.clear();
 }
 
+void PerformerAudioProcessor::handleAsyncUpdate()
+{
+    const int prog = pendingProgram.exchange (-1);
+    if (prog >= 0 && prog < (int) presets.entries().size()) presets.load (prog);
+    juce::String name;
+    { const juce::SpinLock::ScopedLockType sl (presetNameLock); std::swap (name, pendingPresetName); }
+    if (name.isNotEmpty()) presets.setCurrentName (name);
+}
+
 void PerformerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     if (auto old = state.getChildWithName ("MIDIMAP"); old.isValid()) state.removeChild (old, nullptr);
     state.appendChild (ccMap.toValueTree(), nullptr);
+    state.setProperty ("presetName", presets.getCurrentName(), nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary (*xml, destData);
 }
 
@@ -189,7 +204,14 @@ void PerformerAudioProcessor::setStateInformation (const void* data, int sizeInB
             ccMap.fromValueTree (map);
             state.removeChild (map, nullptr);
         }
+        const auto presetName = state.getProperty ("presetName").toString();
+        state.removeProperty ("presetName", nullptr);
         apvts.replaceState (state);
+        if (presetName.isNotEmpty())
+        {
+            { const juce::SpinLock::ScopedLockType sl (presetNameLock); pendingPresetName = presetName; }
+            triggerAsyncUpdate();
+        }
     }
 }
 

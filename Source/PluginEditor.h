@@ -49,6 +49,21 @@ private:
     juce::Rectangle<float> slot() const;
 };
 
+// Barra preset nell'intestazione: < nome > ; clic sul nome = menu (elenco, salva, salva come...)
+class PresetBar : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    explicit PresetBar (PerformerAudioProcessor& p);
+    void paint (juce::Graphics& g) override;
+    void mouseDown (const juce::MouseEvent& e) override;
+    void refresh();
+private:
+    PerformerAudioProcessor& proc;
+    int lastVersion = -1;
+    void showMenu();
+    void askSaveAs();
+};
+
 class PerformerPanel : public juce::Component
 {
 public:
@@ -89,6 +104,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> stereoAtt, retrigAtt, separateAtt;
     PerfButton* modLedButton = nullptr;
     std::unique_ptr<TransposeSwitch> transposeSwitch;
+    PresetBar presetBar;
 
     juce::MidiKeyboardComponent keyboard;
     int lastMapVersion = -1;

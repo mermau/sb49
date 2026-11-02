@@ -147,8 +147,124 @@ void TransposeSwitch::mouseDown (const juce::MouseEvent& e)
 }
 
 // ---------------------------------------------------------------------------------------
+PresetBar::PresetBar (PerformerAudioProcessor& p) : proc (p)
+{
+    setTooltip ("Preset: frecce = precedente / successivo, clic sul nome = elenco e salvataggio. "
+                "Anche Program Change MIDI dalla tastiera.");
+}
+
+void PresetBar::refresh()
+{
+    const int v = proc.presets.version.load();
+    if (v != lastVersion) { lastVersion = v; repaint(); }
+}
+
+void PresetBar::paint (juce::Graphics& g)
+{
+    const auto r = getLocalBounds().toFloat();
+    g.setColour (ui::creamDim);
+    g.setFont (font (7.5f));
+    g.drawText ("PRESET", r.withHeight (10.0f), juce::Justification::centredLeft, false);
+
+    auto box = r.withTrimmedTop (11.0f);
+    g.setColour (juce::Colour (0xff0b0b0c));
+    g.fillRoundedRectangle (box, 2.5f);
+    g.setColour (ui::boxRed);
+    g.drawRoundedRectangle (box.reduced (0.5f), 2.5f, 1.0f);
+
+    auto arrow = [&] (juce::Rectangle<float> a, bool left)
+    {
+        juce::Path t;
+        const auto c = a.getCentre();
+        if (left) t.addTriangle (c.x + 3.0f, c.y - 4.0f, c.x + 3.0f, c.y + 4.0f, c.x - 3.0f, c.y);
+        else      t.addTriangle (c.x - 3.0f, c.y - 4.0f, c.x - 3.0f, c.y + 4.0f, c.x + 3.0f, c.y);
+        g.setColour (ui::cream);
+        g.fillPath (t);
+    };
+    arrow (box.withWidth (16.0f), true);
+    arrow (box.withTrimmedLeft (box.getWidth() - 16.0f), false);
+
+    auto name = proc.presets.getCurrentName();
+    if (name.isEmpty()) name = "-";
+    g.setColour (proc.presets.currentIsFactory() ? ui::cream : ui::stripeAmber);
+    g.setFont (font (9.5f));
+    g.drawFittedText (name, box.reduced (17.0f, 0.0f).toNearestInt(), juce::Justification::centred, 1, 0.8f);
+}
+
+void PresetBar::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.position.y < 11.0f) { showMenu(); return; }
+    if (e.position.x < 17.0f)                      proc.presets.step (-1);
+    else if (e.position.x > (float) getWidth() - 17.0f) proc.presets.step (+1);
+    else                                           showMenu();
+    refresh();
+}
+
+void PresetBar::showMenu()
+{
+    auto& pm = proc.presets;
+    pm.rescan();
+    juce::PopupMenu m, fac, usr;
+    const auto& list = pm.entries();
+    for (int i = 0; i < (int) list.size(); ++i)
+    {
+        auto& menu = list[(size_t) i].factory ? fac : usr;
+        const juce::String prefix = list[(size_t) i].factory ? juce::String (i + 1).paddedLeft ('0', 2) + "  " : juce::String();
+        menu.addItem (1000 + i, prefix + list[(size_t) i].name, true, i == pm.getCurrentIndex());
+    }
+    m.addSubMenu ("Preset di fabbrica", fac);
+    if (usr.getNumItems() > 0) m.addSubMenu ("Preset utente", usr);
+    else m.addItem (9, "Preset utente: nessuno", false);
+    m.addSeparator();
+    const bool user = pm.getCurrentIndex() >= 0 && ! pm.currentIsFactory();
+    m.addItem (1, "Salva" + (user ? "  \"" + pm.getCurrentName() + "\"" : juce::String()), user);
+    m.addItem (2, "Salva come...");
+    m.addItem (3, "Elimina preset utente corrente", user);
+    m.addSeparator();
+    m.addItem (4, "Mostra cartella dei preset");
+
+    juce::Component::SafePointer<PresetBar> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this), [safe] (int r)
+    {
+        if (safe == nullptr || r == 0) return;
+        auto& p = safe->proc.presets;
+        if (r >= 1000) p.load (r - 1000);
+        else if (r == 1) p.save();
+        else if (r == 2) safe->askSaveAs();
+        else if (r == 3) p.remove (p.getCurrentIndex());
+        else if (r == 4)
+        {
+            auto dir = PresetManager::userFolder();
+            dir.createDirectory();
+            dir.revealToUser();
+        }
+        safe->refresh();
+    });
+}
+
+void PresetBar::askSaveAs()
+{
+    auto* w = new juce::AlertWindow ("Salva preset", "Nome del preset:", juce::MessageBoxIconType::NoIcon, this);
+    const auto suggested = proc.presets.currentIsFactory() ? proc.presets.getCurrentName() + " (mio)" : proc.presets.getCurrentName();
+    w->addTextEditor ("name", suggested);
+    w->addButton ("Salva", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Annulla", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<PresetBar> safe (this);
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int r)
+    {
+        if (safe == nullptr || r != 1) return;
+        const auto name = w->getTextEditorContents ("name").trim();
+        if (name.isEmpty()) return;
+        if (! safe->proc.presets.saveAs (name))
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Salva preset",
+                                                    "Impossibile salvare in " + PresetManager::userFolder().getFullPathName());
+        safe->refresh();
+    }), true);
+}
+
+// ---------------------------------------------------------------------------------------
 PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
-    : proc (p), keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
+    : proc (p), presetBar (p), keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     // BRASS SECTION
     sections.push_back ({ "BRASS", (int) slots.size(), 6, {} });
@@ -182,6 +298,7 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     sections.push_back ({ "MASTER", (int) slots.size(), 1, {} });
     addSlider (pid::masterVolume, "VOLUME");
 
+    addAndMakeVisible (presetBar);
     transposeSwitch = std::make_unique<TransposeSwitch> (proc);
     addAndMakeVisible (*transposeSwitch);
 
@@ -287,7 +404,8 @@ void PerformerPanel::resized()
     }
     stereoToggle.setBounds (1022, 6, 128, 22);
     separateToggle.setBounds (1022, 30, 128, 22);
-    retrigToggle.setBounds (744, 16, 124, 26);
+    presetBar.setBounds (744, 4, 136, 30);
+    retrigToggle.setBounds (744, 36, 124, 20);
 
     const int kbW = W - 2 * cheek;
     keyboard.setBounds (cheek, 338, kbW, H - 338 - 8);
@@ -533,6 +651,7 @@ void PerformerPanel::refresh()
     }
     update (pitchKnob.get(), pid::pitch);
     update (transposeSwitch.get(), pid::transpose);
+    presetBar.refresh();
 }
 
 // ---------------------------------------------------------------------------------------
