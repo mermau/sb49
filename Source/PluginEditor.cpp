@@ -328,6 +328,16 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     addAndMakeVisible (separateToggle);
     separateAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, pid::separateOutputsId, separateToggle);
 
+    driftToggle.setButtonText ("DERIVA PITCH");
+    driftToggle.setTooltip ("Opzione vintage (stimata): lenta deriva dell'oscillatore master analogico, circa 1,5 cent");
+    addAndMakeVisible (driftToggle);
+    driftAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, pid::pitchDriftId, driftToggle);
+
+    noiseToggle.setButtonText ("FRUSCIO BBD");
+    noiseToggle.setTooltip ("Opzione vintage (stimata): fruscio delle linee di ritardo dell'ensemble, circa -72 dBFS ai volumi di default");
+    addAndMakeVisible (noiseToggle);
+    noiseAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, pid::bbdNoiseId, noiseToggle);
+
     retrigToggle.setButtonText ("BRASS RETRIG");
     retrigToggle.setColour (juce::ToggleButton::textColourId, ui::cream);
     retrigToggle.setColour (juce::ToggleButton::tickColourId, ui::ledOn);
@@ -402,8 +412,10 @@ void PerformerPanel::resized()
         const auto a = spanOf (pid::strings16, pid::strings8);
         transposeSwitch->setBounds (a.getX() - 6, 222, a.getWidth() + 12, 42);
     }
-    stereoToggle.setBounds (1022, 6, 128, 22);
-    separateToggle.setBounds (1022, 30, 128, 22);
+    stereoToggle.setBounds (1022, 3, 128, 13);
+    separateToggle.setBounds (1022, 17, 128, 13);
+    driftToggle.setBounds (1022, 31, 128, 13);
+    noiseToggle.setBounds (1022, 45, 128, 13);
     presetBar.setBounds (744, 4, 136, 30);
     retrigToggle.setBounds (744, 36, 124, 20);
 

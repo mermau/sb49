@@ -32,7 +32,7 @@ inline constexpr std::array<ParamInfo, 22> all {{
     { "modDepth",       "Mod Depth",          false, 0.00f },
     { "modToVcf",       "Mod VCF/FM",         true,  0.0f  },
     { "masterVolume",   "Master Volume",      false, 0.80f },
-    { "pitch",          "Pitch",              false, 0.0f  }, // range -15..+15 semitoni
+    { "pitch",          "Pitch",              false, 0.0f  }, // range -20..+10 semitoni, lineare in Hz
     { "brassRetrig",    "Brass Retrig",       true,  0.0f  }, // estensione, non presente nell'originale
     { "transpose",      "Strings Transpose",  false, 0.5f  }, // Performer versione B: Down / Normal / Up
 }};
@@ -47,5 +47,7 @@ enum Index
 
 inline constexpr const char* stereoEnsembleId = "stereoEnsemble";
 inline constexpr const char* separateOutputsId = "separateOutputs";
+inline constexpr const char* pitchDriftId = "pitchDrift"; // opzione vintage: deriva del master
+inline constexpr const char* bbdNoiseId = "bbdNoise";     // opzione vintage: fruscio BBD
 inline constexpr int numMappable = (int) all.size();
 } // namespace pid

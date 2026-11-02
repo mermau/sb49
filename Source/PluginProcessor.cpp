@@ -15,6 +15,8 @@ PerformerAudioProcessor::PerformerAudioProcessor()
     }
     rawStereo = apvts.getRawParameterValue (pid::stereoEnsembleId);
     rawSeparate = apvts.getRawParameterValue (pid::separateOutputsId);
+    rawDrift = apvts.getRawParameterValue (pid::pitchDriftId);
+    rawNoise = apvts.getRawParameterValue (pid::bbdNoiseId);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::createLayout()
@@ -29,9 +31,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::cre
             layout.add (std::make_unique<juce::AudioParameterChoice> (id, p.name,
                 juce::StringArray { "Down", "Normal", "Up" }, 1));
         else if (juce::String (p.id) == "pitch")
-            layout.add (std::make_unique<juce::AudioParameterFloat> (id, p.name,
-                juce::NormalisableRange<float> (-15.0f, 15.0f), 0.0f,
-                juce::AudioParameterFloatAttributes().withLabel ("st")));
+        {
+            // PITCH come l'originale (P555): la manopola varia la frequenza del master in modo LINEARE
+            // in Hz, da -20 a +10 semitoni; il "normale" cade poco a sinistra del centro (~47% della corsa)
+            constexpr float r0 = 0.31498f, r1 = 1.78180f; // 2^(-20/12), 2^(10/12)
+            juce::NormalisableRange<float> range (-20.0f, 10.0f,
+                [] (float, float, float x) { return 12.0f * std::log2 (r0 + juce::jlimit (0.0f, 1.0f, x) * (r1 - r0)); },
+                [] (float, float, float v) { return juce::jlimit (0.0f, 1.0f, (std::exp2 (v / 12.0f) - r0) / (r1 - r0)); });
+            layout.add (std::make_unique<juce::AudioParameterFloat> (id, p.name, range, 0.0f,
+                juce::AudioParameterFloatAttributes().withLabel ("st").withStringFromValueFunction (
+                    [] (float v, int) { return (v > 0.0f ? "+" : "") + juce::String (v, 1); })));
+        }
         else
             layout.add (std::make_unique<juce::AudioParameterFloat> (id, p.name,
                 juce::NormalisableRange<float> (0.0f, 1.0f), p.defaultValue,
@@ -43,6 +53,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::cre
     layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { pid::separateOutputsId, 1 },
                                                             "Separate Outputs", false,
                                                             juce::AudioParameterBoolAttributes().withAutomatable (false)));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { pid::pitchDriftId, 1 }, "Pitch Drift", false));
+    layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { pid::bbdNoiseId, 1 }, "BBD Noise", false));
     return layout;
 }
 
@@ -83,6 +95,8 @@ perf::Params PerformerAudioProcessor::readParams() const
     p.brassRetrig = v (pid::brassRetrig) > 0.5f;
     p.stringsTranspose = juce::jlimit (-1, 1, juce::roundToInt (v (pid::transpose)) - 1);
     p.stereoEnsemble = rawStereo->load() > 0.5f;
+    p.pitchDrift = rawDrift->load() > 0.5f;
+    p.bbdNoise = rawNoise->load() > 0.5f;
     return p;
 }
 

@@ -100,8 +100,8 @@ private:
 
     std::unique_ptr<LearnSlider> pitchKnob;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pitchAtt;
-    juce::ToggleButton stereoToggle, retrigToggle, separateToggle;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> stereoAtt, retrigAtt, separateAtt;
+    juce::ToggleButton stereoToggle, retrigToggle, separateToggle, driftToggle, noiseToggle;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> stereoAtt, retrigAtt, separateAtt, driftAtt, noiseAtt;
     PerfButton* modLedButton = nullptr;
     std::unique_ptr<TransposeSwitch> transposeSwitch;
     PresetBar presetBar;

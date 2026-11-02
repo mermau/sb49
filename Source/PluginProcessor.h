@@ -61,6 +61,8 @@ private:
     std::array<std::atomic<float>*, pid::numMappable> raw {};
     std::atomic<float>* rawStereo = nullptr;
     std::atomic<float>* rawSeparate = nullptr;
+    std::atomic<float>* rawDrift = nullptr;
+    std::atomic<float>* rawNoise = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PerformerAudioProcessor)
 };

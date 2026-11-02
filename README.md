@@ -33,12 +33,15 @@ Ogni blocco è ricavato dai valori dei componenti degli schemi di servizio. I bl
 | Scheda | Circuito | Come è emulato |
 |---|---|---|
 | P555 | Oscillatore master 2,00024 MHz → MK50240 | Divisori reali 239…451: stesse piccole stonature dell'originale |
+| P555 | Manopola PITCH | Come l'originale: da −20 a +10 semitoni, **lineare in frequenza** (l'intonazione normale cade al 47% circa della corsa) |
 | P554 | 12 TDA1008, scala resistiva 22K/39K/82K/150K, sommatori IC13 (22K ∥ 2,2 nF) e IC14 (8K2 ∥ 10 nF) | Onde quadre band-limited con gli stessi pesi. Passa-basso dei sommatori: 3,29 kHz per gli archi, 1,94 kHz per il brass |
 | P554 | Attacco dei tasti: R5…R9 in serie a 4,7 µF | Costante per tasto dalla tabella: 4,7 ms nelle due ottave basse, da 4,7 a 18 ms nell'ottava centrale (R7 da 1K a 3K9), 22 ms in quella alta |
 | P559 | Crescendo: TR3 generatore di corrente (DZ1 6,2 V) su C14 47 µF | Rampa **lineare** da 55 ms a 5,5 s (P4 100K lin), scarica in 47 ms (R43 1K). Il buss bar parte da circa il 37% del livello pieno |
 | P559 | Miscelatore 8'/16', preenfasi IC2, EQ a giratori, R22/C13 | Simulazione nodale del circuito vero e proprio (25 nodi, 4 operazionali e 3 giratori). Bande a 341 Hz, 881 Hz e 3,2 kHz; da −13 a +13 dB circa, piatto a metà corsa; potenziometri lineari come nell'originale |
 | P551 | Filtri d'ingresso e d'uscita delle BBD (Sallen-Key) | Ingresso 7,3 kHz Q 4,1 (nel circuito simulato), uscita 8,5 kHz Q 1,9. Insieme alla preenfasi danno una risposta piatta fino a 6 kHz con taglio netto sopra |
 | P550/P551 | Tre TCA350 (185 stadi), clock 22,6 kHz | Ritardo centrale 4,09 ms. LFO lento 0,52 Hz (±6,5%, tre fasi a 120°), veloce 5,8 Hz (±1,5%, fasi a 90°): **tarati sui campioni del Performer originale** |
+| P551 | BBD come sistema campionato | Ogni linea ha il proprio clock modulato: l'ingresso è campionato ai fronti di clock (con l'aliasing del chip sopra 11,3 kHz) e l'uscita è a gradini (sample & hold, con la sua attenuazione degli acuti), ricostruita dal filtro d'uscita. Gradini band-limited (polyBLEP) per non aggiungere aliasing digitale |
+| P551 | Tolleranze delle tre schede | Ogni scheda ha il suo multivibratore: clock centrali +2,8%, −3,1%, +0,9% e sensibilità alla modulazione −4%, +6%, +2% (valori plausibili per componenti al 5–10%, fissi come in un esemplare reale) |
 | P557 | Inviluppo brass: TR16, C19, TR15, C18, D1/D2, DECAY, ATTACK, C2, nodo di somma | Simulazione a livello di circuito con diodi e transistor. Riproduce il ritardo di circa 50 ms dell'apertura, la dipendenza della profondità dall'ATTACK e il trigger unico del gate comune |
 | P557 | Convertitore esponenziale TR13/TR14, RANGE (4 ottave), modulazione (R33 100K) | 17,9 mV/ottava. Somma di RANGE, inviluppo e LFO con i pesi delle resistenze |
 | P557 | Ladder 4 poli, 4 × 47 nF | Modello non lineare a transistor (Huovilainen), sovracampionato 2x. Livello d'ingresso **tarato sui campioni**: a filtro aperto le armoniche pari restano intatte, quindi il ladder lavora quasi in zona lineare (lo schema farebbe pensare a una forte saturazione) |
@@ -60,6 +63,10 @@ Lo strumento di misura è in `tools/render_note.cpp`; le posizioni dei comandi d
 - **Livelli relativi archi/brass**: il guadagno dello stadio d'uscita del ladder non è ricavabile; i due livelli sono pareggiati.
 
 Dalla **versione B** del Performer (revisione successiva al manuale usato qui) viene il deviatore **TRANSPOSE** sotto i pulsanti 16' e 8': sposta gli archi di un'ottava in giù (DOWN) o in su (UP), cioè fino ai registri 32' e 4'. Il brass non cambia. In posizione centrale il comportamento è quello della versione A.
+
+Opzioni "vintage" (stimate, spente di default, non salvate nei preset):
+- **DERIVA PITCH**: lenta deriva casuale dell'oscillatore master analogico, circa 1,5 cent efficaci, con variazioni nell'arco di decine di secondi.
+- **FRUSCIO BBD**: rumore dei trasferimenti di carica delle tre linee, circa −72 dBFS efficaci ai volumi di default; segue i volumi archi e master.
 
 Estensioni non presenti nell'originale:
 - **BRASS RETRIG**: fa ripartire l'attacco del brass a ogni nuova nota anche suonando legato. Spento di default, come nell'originale.
@@ -116,7 +123,7 @@ Il nome BIZARRE Entertainer, il lettering e l'icona sono originali. I font sono 
 ## Preset
 
 Barra PRESET nell'intestazione: frecce = precedente/successivo, clic sul nome = elenco, Salva, Salva come, Elimina, Mostra cartella.
-I preset contengono solo il suono (i 22 parametri + Stereo Ensemble): la mappa MIDI e la scelta delle uscite restano invariate.
+I preset contengono solo il suono (i 22 parametri + Stereo Ensemble): la mappa MIDI, la scelta delle uscite e le opzioni vintage restano invariate.
 Program Change MIDI n seleziona il preset n+1 dell'elenco (prima i 15 di fabbrica, poi quelli utente in ordine alfabetico).
 
 - Cartella utente (macOS): `~/Library/Audio/Presets/Collateral Effects/BIZARRE Entertainer/` (file `.bizpreset`, XML).

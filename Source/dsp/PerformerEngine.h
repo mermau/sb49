@@ -33,9 +33,17 @@ struct Params
     float masterVolume = 0.8f;
     float pitchSemitones = 0.0f;
     bool  stereoEnsemble = false;  // estensione
+    // opzioni "vintage" (stimate, disattivabili)
+    bool  pitchDrift = false;      // deriva lenta dell'oscillatore master
+    bool  bbdNoise = false;        // fruscio delle linee BBD
 };
 
-// Tre linee BBD TCA350 (185 stadi, clock ~22,6 kHz) modulate dall'LFO a due velocità (P550/P551)
+// Tre linee BBD TCA350 (P551) modulate dall'LFO a due velocità (P550).
+// Ogni linea è simulata come il chip vero: un registro di campioni avanzato dal proprio clock
+// (multivibratore 2 x 39K / 820p, ~22,6 kHz, modulato in frequenza dalla tensione L1/L2/L3).
+// L'ingresso è campionato agli istanti di clock (con l'aliasing del chip) e l'uscita è a gradini
+// (sample & hold) ricostruita dal filtro Sallen-Key d'uscita; i gradini sono band-limited (polyBLEP)
+// per non aggiungere aliasing digitale che l'originale non ha.
 struct Ensemble
 {
     void prepare (double sr);
@@ -45,9 +53,19 @@ struct Ensemble
     // tarati sui campioni del Performer originale (spettri di modulazione AM/FM, vedi README)
     double slowHz = 0.52, fastHz = 5.8, slowDepth = 0.065, fastDepth = 0.015, slowSpacing = 1.0 / 3.0, fastSpacing = 0.25;
     void updateRates();
+    bool noise = false;      // opzione: fruscio delle BBD
+    // volt efficaci aggiunti a ogni campione delle BBD: con i volumi di default circa -72 dBFS efficaci
+    // in uscita (stima: livello tipico degli ensemble a BBD dell'epoca, non misurato su un Performer)
+    float noiseLevel = 0.0056f;
+
+    // tolleranze di "questo esemplare": ogni scheda P551 ha il suo multivibratore (resistenze 5%,
+    // condensatori 5-10%), quindi clock centrali e sensibilità alla modulazione leggermente diversi
+    static constexpr double kClockTol[3] = { +0.028, -0.031, +0.009 };
+    static constexpr double kDepthTol[3] = { -0.04, +0.06, +0.02 };
+    static constexpr double kClockHz = 22.6e3; // nominale: 185 stadi / (2 x 22,6 kHz) = 4,09 ms
+    static constexpr int kCells = 92;          // 185 stadi a due fasi ≈ 92,5 campioni (il mezzo campione è nel S&H)
+
 private:
-    // oscillatori sinusoidali a fasore rotante (niente sin() per campione); le tre uscite
-    // sfasate si ottengono ruotando il fasore di base di slowSpacing / fastSpacing
     struct Rotor
     {
         double re = 1.0, im = 0.0, cr = 1.0, ci = 0.0; // stato, rotazione per campione
@@ -56,12 +74,21 @@ private:
         void step();
         double sinAt (int i) const { return im * sr3[(size_t) i] + re * si3[(size_t) i]; }
     };
-    std::vector<float> buf;
-    int mask = 0, writePos = 0, idle = 0;
+    struct Line
+    {
+        std::array<float, 128> cells {};
+        int w = 0;
+        double phase = 0.0;
+        float held = 0.0f, pending = 0.0f, nextCorr = 0.0f; // S&H, campione in uscita (ritardato di 1), correzione BLEP
+    };
+    std::array<Line, 3> lines;
+    std::array<float, 4> hist {}; // ingresso ai campioni n-3 .. n
+    int idle = 0;
     double sr = 48000.0;
+    uint32_t rng = 0x12345678u;
     Rotor slow, fast;
     std::array<circuit::Biquad, 3> outFilter; // filtro d'uscita Sallen-Key di ogni P551
-    float read (double delaySamples) const;
+    float white();
 };
 
 class Engine
@@ -69,6 +96,7 @@ class Engine
 public:
     void prepare (double sampleRate);
     void reset();
+    static constexpr double kDriftScale = 1550.0; // cent per unità di uscita del filtro (tarato: ~1,5 cent rms)
     void setParams (const Params& p) { params = p; }
 
     void noteOn (int midiNote);
@@ -126,6 +154,9 @@ private:
     // LFO (P556)
     double lfoPhase = 0.25, delayGain = 0.0; int delayReset = 0;
     float bendSemis = 0.0f, modWheel = 0.0f;
+    // deriva del master (P555): rumore filtrato due volte a ~0,08 Hz, ~1,5 cent efficaci
+    double drift1 = 0.0, drift2 = 0.0, aDrift = 0.0;
+    uint32_t driftRng = 0x9e3779b9u;
     float gStr = 0, gBrass = 0, gMaster = 0, aSmooth = 0;
 
     // catene

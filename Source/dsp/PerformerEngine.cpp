@@ -48,11 +48,6 @@ inline double loadedPot (double x, double Rp, double RL) { return x * RL / (RL +
 void Ensemble::prepare (double sampleRate)
 {
     sr = sampleRate;
-    int size = 1;
-    while (size < (int) (sr * 0.02)) size <<= 1;
-    buf.assign ((size_t) size, 0.0f);
-    mask = size - 1;
-    // LFO a due velocità della scheda P550: velocità e profondità tarate sui campioni originali
     updateRates();
     // filtro d'uscita di ogni P551: Sallen-Key R24/R26 22K, C15 3n3, C13 220p → 8,5 kHz, Q 1,94
     for (auto& f : outFilter) f.setLowpass (8490.0, 1.94, sr);
@@ -87,49 +82,72 @@ void Ensemble::updateRates()
 
 void Ensemble::reset()
 {
-    std::fill (buf.begin(), buf.end(), 0.0f);
-    writePos = 0; idle = 0;
+    for (auto& l : lines) { l.cells.fill (0.0f); l.w = 0; l.held = l.pending = l.nextCorr = 0.0f; }
+    // fasi di clock iniziali diverse (i multivibratori sono indipendenti)
+    lines[0].phase = 0.0; lines[1].phase = 0.37; lines[2].phase = 0.71;
+    hist.fill (0.0f);
+    idle = 0;
     for (auto& f : outFilter) f.reset();
 }
 
-float Ensemble::read (double d) const
+float Ensemble::white()
 {
-    const double rp = (double) writePos - d;
-    const double fl = std::floor (rp);
-    const float t = (float) (rp - fl);
-    const int i = (int) fl;
-    const float xm1 = buf[(size_t) ((i - 1) & mask)], x0 = buf[(size_t) (i & mask)];
-    const float x1 = buf[(size_t) ((i + 1) & mask)], x2 = buf[(size_t) ((i + 2) & mask)];
-    const float c1 = 0.5f * (x1 - xm1);
-    const float c2 = xm1 - 2.5f * x0 + 2.0f * x1 - 0.5f * x2;
-    const float c3 = 0.5f * (x2 - xm1) + 1.5f * (x0 - x1);
-    return ((c3 * t + c2) * t + c1) * t + x0;
+    // xorshift32 → uniforme in [-1, 1); somma di due uniformi: distribuzione triangolare, varianza 2/3
+    auto u = [this] { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return (float) (int32_t) rng * (1.0f / 2147483648.0f); };
+    return (u() + u()) * 1.2247449f; // varianza 1
 }
 
 void Ensemble::process (float x, float& outL, float& outR, bool stereo)
 {
     slow.step(); fast.step();
-    // ingresso nullo da più della lunghezza della linea + coda dei filtri: uscita nulla, niente calcoli
-    const int idleLimit = mask + 1 + (int) (0.05 * sr);
-    if (! circuit::same (x, 0.0)) idle = 0;
+    // ingresso nullo da più della lunghezza delle linee + coda dei filtri: uscita nulla, niente calcoli
+    // (non con il fruscio attivo: le BBD frusciano anche senza segnale)
+    const int idleLimit = (int) (0.06 * sr);
+    if (! circuit::same (x, 0.0) || noise) idle = 0;
     else if (idle <= idleLimit && ++idle > idleLimit)
     {
-        std::fill (buf.begin(), buf.end(), 0.0f); // tutto già a zero o quasi: azzera esattamente
+        for (auto& l : lines) { l.cells.fill (0.0f); l.held = l.pending = l.nextCorr = 0.0f; }
+        hist.fill (0.0f);
         for (auto& f : outFilter) f.reset();
     }
     if (idle > idleLimit) { outL = outR = 0.0f; return; }
-    buf[(size_t) writePos] = x;
 
-    // TCA350: 185 stadi, clock nominale 22,6 kHz (multivibratore 2 x 39K / 820p) → 4,09 ms
-    constexpr double centerMs = 185.0 / (2.0 * 22.6) ;
+    hist[0] = hist[1]; hist[1] = hist[2]; hist[2] = hist[3]; hist[3] = x;
+
     float o[3];
     for (int i = 0; i < 3; ++i)
     {
-        // uscite L1, L2, L3 della P550: fasi diverse dei due oscillatori
-        const double ms = centerMs * (1.0 + slowDepth * slow.sinAt (i) + fastDepth * fast.sinAt (i));
-        o[i] = (float) outFilter[(size_t) i].process (read (ms * 0.001 * sr));
+        auto& l = lines[(size_t) i];
+        // la tensione di modulazione allunga il periodo del clock: ritardo = celle / clock
+        const double m = (1.0 + kDepthTol[i]) * (slowDepth * slow.sinAt (i) + fastDepth * fast.sinAt (i));
+        const double inc = kClockHz * (1.0 + kClockTol[i]) / (1.0 + m) / sr;
+        l.phase += inc;
+        while (l.phase >= 1.0)
+        {
+            l.phase -= 1.0;
+            const float d = (float) (l.phase / inc); // istante del fronte di clock, in campioni prima di "adesso"
+            // campionamento dell'ingresso a quell'istante (Hermite, con un campione di latenza)
+            const float t = 1.0f - d;
+            const float xm1 = hist[0], x0 = hist[1], x1 = hist[2], x2 = hist[3];
+            const float c1 = 0.5f * (x1 - xm1);
+            const float c2 = xm1 - 2.5f * x0 + 2.0f * x1 - 0.5f * x2;
+            const float c3 = 0.5f * (x2 - xm1) + 1.5f * (x0 - x1);
+            const float in = ((c3 * t + c2) * t + c1) * t + x0;
+            float outCell = l.cells[(size_t) ((l.w - kCells) & 127)];
+            if (noise) outCell += noiseLevel * white(); // rumore dei trasferimenti di carica: un valore per fronte
+            l.cells[(size_t) l.w] = in;
+            l.w = (l.w + 1) & 127;
+            // gradino del sample & hold, band-limited con polyBLEP a due campioni
+            const float step = outCell - l.held;
+            l.held = outCell;
+            l.pending += step * 0.5f * d * d;
+            l.nextCorr -= step * 0.5f * (1.0f - d) * (1.0f - d);
+        }
+        float y = l.pending;                 // campione precedente, ora completo
+        l.pending = l.held + l.nextCorr;     // campione attuale (riceverà la correzione del prossimo fronte)
+        l.nextCorr = 0.0f;
+        o[i] = (float) outFilter[(size_t) i].process (y);
     }
-    writePos = (writePos + 1) & mask;
 
     if (stereo)
     {
@@ -177,6 +195,7 @@ void Engine::prepare (double sampleRate)
     brassEnv.prepare (sr);
     ladder.prepare (sr);
     aSmooth = coef (0.02, sr);
+    aDrift = coef (1.0 / (2.0 * kPi * 0.08), sr);
     reset();
 }
 
@@ -236,6 +255,7 @@ void Engine::process (const Outputs& out, int n)
 
     // --- coefficienti dipendenti dai comandi
     strings.setEq (p.stringsLow, p.stringsMid, p.stringsHigh);
+    ensemble.noise = p.bbdNoise;
     // SUSTAIN: pin 7 dei TDA1008; massimo limitato da 1 MΩ x 4,7 µF = 4,7 s; escluso con BRASS
     const float aRel = p.brassOn ? coef (0.008, sr) : coef (0.008 * std::pow (4.7 / 0.008, (double) p.sustain), sr);
     // CRESCENDO: TR3 generatore di corrente (DZ1 6,2 V) → rampa lineare su C14 47µ
@@ -273,8 +293,17 @@ void Engine::process (const Outputs& out, int n)
         const double modVcf = p.modToVcf ? vLfo : 0.0;
         const double fmRatio = p.modToVcf ? 1.0 : 1.0 + 0.0499 * vLfo / 3.2;   // R13 1M sul nodo 3,2 V
 
-        // ---- oscillatore master
-        const double ratio = std::exp2 ((p.pitchSemitones + bendSemis) / 12.0) * fmRatio;
+        // ---- oscillatore master (con l'opzione di deriva lenta)
+        double driftCents = 0.0;
+        if (p.pitchDrift)
+        {
+            driftRng ^= driftRng << 13; driftRng ^= driftRng >> 17; driftRng ^= driftRng << 5;
+            const double wn = (double) (int32_t) driftRng * (1.0 / 2147483648.0);
+            drift1 += (wn - drift1) * aDrift;
+            drift2 += (drift1 - drift2) * aDrift;
+            driftCents = kDriftScale * drift2 * std::sqrt (sr / 48000.0);
+        }
+        const double ratio = std::exp2 ((p.pitchSemitones + bendSemis + 0.01 * driftCents) / 12.0) * fmRatio;
 
         // ---- crescendo / buss bar
         if (gate) vC14 = std::min (6.05, vC14 + crescRate * dt);
