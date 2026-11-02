@@ -140,7 +140,8 @@ void PerformerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         auto bb = getBusBuffer (buffer, false, 1);
         if (bb.getNumChannels() > 0) { bL = bb.getWritePointer (0); bR = bb.getNumChannels() > 1 ? bb.getWritePointer (1) : nullptr; }
     }
-    if (getBusCount (false) > 2 && getBus (false, 2)->isEnabled())
+    // SIGNAL (bus brass grezzo) anch'esso solo con USCITE SEPARATE: altrimenti il bus brass non va calcolato
+    if (getBusCount (false) > 2 && getBus (false, 2)->isEnabled() && rawSeparate->load() > 0.5f)
     {
         auto sb = getBusBuffer (buffer, false, 2);
         if (sb.getNumChannels() > 0) sig = sb.getWritePointer (0);

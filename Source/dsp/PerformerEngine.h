@@ -44,11 +44,22 @@ struct Ensemble
     // modulazione del clock delle BBD (velocità in Hz, profondità relativa al ritardo centrale)
     // tarati sui campioni del Performer originale (spettri di modulazione AM/FM, vedi README)
     double slowHz = 0.52, fastHz = 5.8, slowDepth = 0.065, fastDepth = 0.015, slowSpacing = 1.0 / 3.0, fastSpacing = 0.25;
-    void updateRates() { incSlow = slowHz / sr; incFast = fastHz / sr; }
+    void updateRates();
 private:
+    // oscillatori sinusoidali a fasore rotante (niente sin() per campione); le tre uscite
+    // sfasate si ottengono ruotando il fasore di base di slowSpacing / fastSpacing
+    struct Rotor
+    {
+        double re = 1.0, im = 0.0, cr = 1.0, ci = 0.0; // stato, rotazione per campione
+        std::array<double, 3> sr3 {}, si3 {};           // seno/coseno degli sfasamenti 0, 1, 2
+        void set (double inc, double spacing);
+        void step();
+        double sinAt (int i) const { return im * sr3[(size_t) i] + re * si3[(size_t) i]; }
+    };
     std::vector<float> buf;
-    int mask = 0, writePos = 0;
-    double sr = 48000.0, phSlow = 0.0, phFast = 0.0, incSlow = 0.0, incFast = 0.0;
+    int mask = 0, writePos = 0, idle = 0;
+    double sr = 48000.0;
+    Rotor slow, fast;
     std::array<circuit::Biquad, 3> outFilter; // filtro d'uscita Sallen-Key di ogni P551
     float read (double delaySamples) const;
 };
@@ -103,12 +114,12 @@ private:
     double sr = 48000.0;
     std::array<Key, kNumKeys> keys {};
     int heldKeys = 0;
-    bool prevGate = false, pedalDown = false, retrigPending = false;
+    bool prevGate = false, pedalDown = false, retrigPending = false, brassWasOn = false;
     int retrigHold = 0, silentSamples = 0;
 
     std::array<double, 12> topFreq {}, counter {};
     std::array<std::array<float, kNumOctaves>, 12> sq {};
-    std::array<bool, 12> classActive {};
+    std::array<uint32_t, 12> classOctaves {}; // ottave del divisore richieste per classe di nota
 
     // crescendo (P559): tensione su C14 47µ
     double vC14 = 0.0;

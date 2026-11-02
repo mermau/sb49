@@ -60,7 +60,8 @@ private:
     std::vector<int> perm;
     std::vector<char> isAmpRow;
     int outNode = -1, numInputs = 0;
-    std::vector<double> F, E, cOut, dOut, Jtmp; // matrici dello spazio degli stati
+    // spazio degli stati compatto: z = [J ; u] contiguo, righe di FE = [F | E], uscita cd = [c | d]
+    std::vector<double> FE, cd, z, Jtmp;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -96,7 +97,7 @@ private:
 class BrassEnvelope
 {
 public:
-    void prepare (double sr) { dt = 1.0 / (sr * kSub); reset(); }
+    void prepare (double sr) { dt = 1.0 / (sr * kSub); kRestSamples = (int) (12.0 * sr); lastTauW = -1.0; reset(); }
     void reset();
     double process (bool gate, double decaySlider, double attackSlider, double rangeSlider, double modVolts);
     double attackDelayMs() const { return 0.0; }
@@ -105,6 +106,11 @@ private:
     double dt = 1.0 / 192000.0;
     double vC19 = 5.56, vC18 = 0.0, vC2 = 0.0, w = 0.0;
     bool sat = true, d1 = false, d2 = false;
+    // ottimizzazioni: coefficiente di RANGE in cache; salto del calcolo a regime (12 s ≈ 10 costanti
+    // di tempo della più lenta, C18 2,2µ con DECAY al massimo)
+    double lastTauW = -1.0, aW = 0.0, lastS = 0.0, lastDecay = -1.0, lastAttack = -1.0, lastRange = -1.0;
+    double cRd = 0.0, cRa = 0.0; // R26 + P1, R27 + P5 (ricalcolati solo quando si muove il cursore)
+    int restCount = 0, kRestSamples = 576000;
 };
 
 // ---------------------------------------------------------------------------------------
@@ -147,6 +153,22 @@ struct Biquad // passa-basso del secondo ordine (Sallen-Key a guadagno unitario)
     }
     void reset() { z1 = z2 = 0; }
 };
+
+// confronto esatto (rilevamento di un cambiamento), senza l'avviso -Wfloat-equal
+inline bool same (double a, double b) { return ! (a < b) && ! (a > b); }
+
+// tanh veloce: Padé [7/6] per |x| < 3 (errore < 1e-6), forma esponenziale esatta oltre
+inline double fastTanh (double x)
+{
+    const double ax = std::abs (x);
+    if (ax < 3.0)
+    {
+        const double x2 = x * x;
+        return x * (135135.0 + x2 * (17325.0 + x2 * (378.0 + x2))) / (135135.0 + x2 * (62370.0 + x2 * (3150.0 + 28.0 * x2)));
+    }
+    const double t = 1.0 - 2.0 / (std::exp (2.0 * ax) + 1.0);
+    return x < 0.0 ? -t : t;
+}
 
 // Potenziometri: curve tipiche delle piste logaritmiche (10% a metà corsa)
 inline double logTaper (double s) { return (std::pow (10.0, 2.0 * s) - 1.0) / 99.0; }

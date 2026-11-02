@@ -135,4 +135,4 @@ In Ableton Live: crea una traccia MIDI con il plugin, poi in un'altra traccia au
 ## Verifiche
 - **pluginval** (livello 7) su VST3 e AU, più **auval**, a ogni build macOS su GitHub.
 - **Aliasing**: residuo degli oscillatori sotto i −59 dB sulla nota più acuta a 44,1 kHz.
-- **CPU**: la catena archi usa la forma in spazio degli stati del circuito (identica alla simulazione nodale) e si ferma dopo 0,3 s di silenzio. Otto note di archi e brass: circa l'8% di un core.
+- **CPU**: la catena archi usa la forma in spazio degli stati del circuito (identica alla simulazione nodale) e si ferma dopo 0,3 s di silenzio; anche ensemble e inviluppo brass si fermano quando sono a regime. Si calcolano solo le uscite del divisore effettivamente usate, gli LFO dell'ensemble sono fasori rotanti e il ladder usa una tanh razionale (errore < 1e-6). Il risultato coincide con la versione precedente entro -114 dB. Otto note di archi e brass: circa il 6% di un core (prima 11%); a riposo quasi zero.

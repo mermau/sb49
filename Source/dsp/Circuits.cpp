@@ -23,6 +23,7 @@ void LinearCircuit::reset()
 {
     for (auto& c : caps) c.J = 0.0;
     std::fill (x.begin(), x.end(), 0.0);
+    std::fill (z.begin(), z.end(), 0.0);
 }
 
 void LinearCircuit::stamp (int a, int b, double g)
@@ -98,10 +99,11 @@ void LinearCircuit::buildStateSpace()
 {
     numInputs = 0;
     for (auto& i : ins) numInputs = std::max (numInputs, i.src + 1);
-    const size_t K = caps.size(), U = (size_t) numInputs;
-    F.assign (K * K, 0.0); E.assign (K * U, 0.0); cOut.assign (K, 0.0); dOut.assign (U, 0.0); Jtmp.assign (K, 0.0);
+    const size_t K = caps.size(), U = (size_t) numInputs, W = K + U;
+    FE.assign (K * W, 0.0); cd.assign (W, 0.0); Jtmp.assign (K, 0.0);
+    if (z.size() != W) z.assign (W, 0.0); // lo stato sopravvive ai cambi di potenziometro
     // risposta a ciascuna corrente storica unitaria (ingressi nulli) e a ciascun ingresso unitario (stato nullo)
-    for (size_t col = 0; col < K + U; ++col)
+    for (size_t col = 0; col < W; ++col)
     {
         std::fill (rhs.begin(), rhs.end(), 0.0);
         if (col < K)
@@ -120,9 +122,9 @@ void LinearCircuit::buildStateSpace()
             const double vb = c.b >= 0 ? x[(size_t) c.b] : 0.0;
             double val = 2.0 * c.G * (va - vb);
             if (col == k) val -= 1.0;
-            if (col < K) F[k * K + col] = val; else E[k * U + (col - K)] = val;
+            FE[k * W + col] = val;
         }
-        if (col < K) cOut[col] = x[(size_t) outNode]; else dOut[col - K] = x[(size_t) outNode];
+        cd[col] = x[(size_t) outNode];
     }
     std::fill (x.begin(), x.end(), 0.0);
 }
@@ -130,19 +132,20 @@ void LinearCircuit::buildStateSpace()
 double LinearCircuit::tickFast (const double* u)
 {
     if (dirty) { build(); buildStateSpace(); }
-    const size_t K = caps.size(), U = (size_t) numInputs;
+    const size_t K = caps.size(), U = (size_t) numInputs, W = K + U;
+    double* zs = z.data();
+    for (size_t i = 0; i < U; ++i) zs[K + i] = u[i];
+    const double* cdp = cd.data();
     double y = 0.0;
-    for (size_t k = 0; k < K; ++k) y += cOut[k] * caps[k].J;
-    for (size_t i = 0; i < U; ++i) y += dOut[i] * u[i];
-    for (size_t k = 0; k < K; ++k)
+    for (size_t j = 0; j < W; ++j) y += cdp[j] * zs[j];
+    const double* row = FE.data();
+    for (size_t k = 0; k < K; ++k, row += W)
     {
         double acc = 0.0;
-        const double* row = &F[k * K];
-        for (size_t j = 0; j < K; ++j) acc += row[j] * caps[j].J;
-        for (size_t i = 0; i < U; ++i) acc += E[k * U + i] * u[i];
+        for (size_t j = 0; j < W; ++j) acc += row[j] * zs[j];
         Jtmp[k] = acc;
     }
-    for (size_t k = 0; k < K; ++k) caps[k].J = Jtmp[k];
+    std::copy (Jtmp.begin(), Jtmp.end(), zs);
     return y;
 }
 
@@ -239,14 +242,16 @@ void BrassEnvelope::reset()
     vC19 = 0.65 + (12.0 - 0.65) * 15e3 / (19.7e3 + 15e3); // C19 a riposo (TR16 interdetto)
     vC18 = 0.1; vC2 = 0.0; w = 0.0;
     sat = true; d1 = false; d2 = false;
+    restCount = 0; lastS = 0.0;
 }
 
 double BrassEnvelope::process (bool gate, double decaySlider, double attackSlider, double rangeSlider, double modVolts)
 {
     constexpr double R25 = 1.5e3, R22 = 15e3, R21 = 4.7e3, R23 = 15e3, C19 = 2.2e-6, C18 = 2.2e-6, C2 = 4.7e-6;
     constexpr double beta = 200.0, vSat = 0.1, vD = 0.6, rD2 = 10.0;
-    const double Rd = 22e3 + 470e3 * logTaper (decaySlider);  // R26 + P1
-    const double Ra = 100e3 + 470e3 * logTaper (attackSlider); // R27 + P5
+    if (! same (decaySlider, lastDecay))  cRd = 22e3 + 470e3 * logTaper (decaySlider);   // R26 + P1
+    if (! same (attackSlider, lastAttack)) cRa = 100e3 + 470e3 * logTaper (attackSlider); // R27 + P5
+    const double Rd = cRd, Ra = cRa;
     constexpr double Gs = 1.0 / 10e3 + 1.0 / 3.3e3 + 1.0 / 220e3 + 1.0 / 100e3;
     constexpr double kz = 1.0 / (10e3 * Gs);
 
@@ -255,11 +260,19 @@ double BrassEnvelope::process (bool gate, double decaySlider, double attackSlide
     const double wTarget = 12.0 * rs * 22e3 / 40e3;
     const double rTop = 18e3 + (1.0 - rs) * 22e3, rBot = std::max (1.0, rs * 22e3);
     const double tauW = std::max (1.0e-4, 10e-6 * (rTop * rBot / (rTop + rBot)));
+    if (! same (tauW, lastTauW)) { lastTauW = tauW; aW = 1.0 - std::exp (-dt / tauW); }
+
+    // a riposo (gate basso da molto, comandi fermi, nessuna modulazione) il circuito è a regime:
+    // la tensione di somma non cambia più e non serve integrarlo
+    const bool quiet = ! gate && same (modVolts, 0.0) && same (decaySlider, lastDecay) && same (attackSlider, lastAttack) && same (rangeSlider, lastRange);
+    lastDecay = decaySlider; lastAttack = attackSlider; lastRange = rangeSlider;
+    restCount = quiet ? std::min (restCount + 1, kRestSamples + 1) : 0;
+    if (restCount > kRestSamples) return lastS;
 
     double S = 0.0;
     for (int sub = 0; sub < kSub; ++sub)
     {
-        w += (wTarget - w) * (1.0 - std::exp (-dt / tauW));
+        w += (wTarget - w) * aW;
         const double Sext = (w / 220e3 + modVolts / 100e3) / Gs;
 
         // TR16 / C19 / TR15
@@ -317,17 +330,18 @@ double BrassEnvelope::process (bool gate, double decaySlider, double attackSlide
         vC2 = Z;
         S = kz * Z + Sext;
     }
+    lastS = S;
     return S;
 }
 
 // ======================================================================================
 double Ladder::tick (double u, double g, double k)
 {
-    const double in = std::tanh (u - k * y[3]);
-    y[0] += g * (in - t[0]);   t[0] = std::tanh (y[0]);
-    y[1] += g * (t[0] - t[1]); t[1] = std::tanh (y[1]);
-    y[2] += g * (t[1] - t[2]); t[2] = std::tanh (y[2]);
-    y[3] += g * (t[2] - t[3]); t[3] = std::tanh (y[3]);
+    const double in = fastTanh (u - k * y[3]);
+    y[0] += g * (in - t[0]);   t[0] = fastTanh (y[0]);
+    y[1] += g * (t[0] - t[1]); t[1] = fastTanh (y[1]);
+    y[2] += g * (t[1] - t[2]); t[2] = fastTanh (y[2]);
+    y[3] += g * (t[2] - t[3]); t[3] = fastTanh (y[3]);
     return y[3];
 }
 

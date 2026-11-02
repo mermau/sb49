@@ -1,5 +1,6 @@
 #include "PerformerEngine.h"
 #include <algorithm>
+#include <bit>
 
 namespace perf
 {
@@ -15,6 +16,8 @@ constexpr float kW[4] = { 1.0f, 22.0f / 39.0f, 22.0f / 82.0f, 22.0f / 150.0f };
 
 // P554, tabella R5..R9 in serie ai condensatori 4,7µ dei tasti: R7 (terza ottava) varia con la nota
 constexpr double kR7[12] = { 1e3, 1e3, 1e3, 1e3, 1e3, 1.2e3, 1.5e3, 1.8e3, 2.2e3, 2.7e3, 3.3e3, 3.9e3 };
+
+constexpr double kInvPow2[10] = { 1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625, 0.001953125 };
 
 inline float coef (double tauSec, double sr) { return (float) (1.0 - std::exp (-1.0 / (std::max (tauSec, 1.0e-6) * sr))); }
 
@@ -56,10 +59,36 @@ void Ensemble::prepare (double sampleRate)
     reset();
 }
 
+void Ensemble::Rotor::set (double inc, double spacing)
+{
+    cr = std::cos (2.0 * kPi * inc);
+    ci = std::sin (2.0 * kPi * inc);
+    for (int i = 0; i < 3; ++i)
+    {
+        sr3[(size_t) i] = std::cos (2.0 * kPi * i * spacing);
+        si3[(size_t) i] = std::sin (2.0 * kPi * i * spacing);
+    }
+}
+
+void Ensemble::Rotor::step()
+{
+    const double nr = re * cr - im * ci;
+    const double ni = re * ci + im * cr;
+    // rinormalizzazione al primo ordine: mantiene |z| = 1 senza sqrt
+    const double g = 1.5 - 0.5 * (nr * nr + ni * ni);
+    re = nr * g; im = ni * g;
+}
+
+void Ensemble::updateRates()
+{
+    slow.set (slowHz / sr, slowSpacing);
+    fast.set (fastHz / sr, fastSpacing);
+}
+
 void Ensemble::reset()
 {
     std::fill (buf.begin(), buf.end(), 0.0f);
-    writePos = 0;
+    writePos = 0; idle = 0;
     for (auto& f : outFilter) f.reset();
 }
 
@@ -79,9 +108,17 @@ float Ensemble::read (double d) const
 
 void Ensemble::process (float x, float& outL, float& outR, bool stereo)
 {
+    slow.step(); fast.step();
+    // ingresso nullo da più della lunghezza della linea + coda dei filtri: uscita nulla, niente calcoli
+    const int idleLimit = mask + 1 + (int) (0.05 * sr);
+    if (! circuit::same (x, 0.0)) idle = 0;
+    else if (idle <= idleLimit && ++idle > idleLimit)
+    {
+        std::fill (buf.begin(), buf.end(), 0.0f); // tutto già a zero o quasi: azzera esattamente
+        for (auto& f : outFilter) f.reset();
+    }
+    if (idle > idleLimit) { outL = outR = 0.0f; return; }
     buf[(size_t) writePos] = x;
-    phSlow += incSlow; if (phSlow >= 1.0) phSlow -= 1.0;
-    phFast += incFast; if (phFast >= 1.0) phFast -= 1.0;
 
     // TCA350: 185 stadi, clock nominale 22,6 kHz (multivibratore 2 x 39K / 820p) → 4,09 ms
     constexpr double centerMs = 185.0 / (2.0 * 22.6) ;
@@ -89,8 +126,7 @@ void Ensemble::process (float x, float& outL, float& outR, bool stereo)
     for (int i = 0; i < 3; ++i)
     {
         // uscite L1, L2, L3 della P550: fasi diverse dei due oscillatori
-        const double ms = centerMs * (1.0 + slowDepth * std::sin (2.0 * kPi * (phSlow + i * slowSpacing))
-                                          + fastDepth * std::sin (2.0 * kPi * (phFast + i * fastSpacing)));
+        const double ms = centerMs * (1.0 + slowDepth * slow.sinAt (i) + fastDepth * fast.sinAt (i));
         o[i] = (float) outFilter[(size_t) i].process (read (ms * 0.001 * sr));
     }
     writePos = (writePos + 1) & mask;
@@ -147,7 +183,7 @@ void Engine::prepare (double sampleRate)
 void Engine::reset()
 {
     for (auto& k : keys) { k.heldCount = 0; k.pedalHeld = false; k.level = 0.0f; }
-    heldKeys = 0; prevGate = false; retrigPending = false;
+    heldKeys = 0; prevGate = false; retrigPending = false; brassWasOn = false;
     counter.fill (0.0);
     vC14 = 0.0; delayGain = 0.0; delayReset = 0;
     bus8.reset(); bus16.reset(); busBrass.reset();
@@ -196,7 +232,7 @@ void Engine::process (const Outputs& out, int n)
     float* L = out.mainL; float* R = out.mainR;
     const bool separateBrass = out.brassL != nullptr;
     const auto& p = params;
-    const double dt = 1.0 / sr;
+    const double dt = 1.0 / sr, invSr = 1.0 / sr;
 
     // --- coefficienti dipendenti dai comandi
     strings.setEq (p.stringsLow, p.stringsMid, p.stringsHigh);
@@ -247,55 +283,67 @@ void Engine::process (const Outputs& out, int n)
         const float busLevel = p.brassOn ? 1.0f : (float) ((e0 - 0.6) / 5.6); // brass ON: buss bar a +6,2 V
         const double stringsVca = p.brassOn ? vC14 / 6.05 : 1.0;    // 3080 IC6 con brass ON
 
-        // ---- condensatori dei tasti
-        classActive.fill (false);
+        // ---- condensatori dei tasti; per ogni classe di nota si annotano le ottave del divisore richieste
+        const bool use8 = p.strings8, use16 = p.strings16, useBr = p.brassOn || out.signal != nullptr;
+        classOctaves.fill (0u);
         bool anyKey = false;
         for (auto& k : keys)
         {
             if (k.held() && busLevel > k.level) k.level += (busLevel - k.level) * k.aAtt;
-            else
+            else if (k.level > 0.0f)
             {
                 k.level -= k.level * aRel;
                 if (k.level < 1.0e-5f) k.level = 0.0f;
             }
-            if (k.level > 0.0f) { classActive[(size_t) k.cls] = true; anyKey = true; }
+            if (k.level > 0.0f)
+            {
+                const int bs = std::clamp (k.k8 - p.stringsTranspose, 2, kNumOctaves - 2);
+                uint32_t m = 0;
+                if (use8)  m |= 0x7u << (bs - 2);
+                if (use16) m |= 0xFu << (bs - 2);
+                if (useBr) m |= 0xFu << (k.k8 - 2);
+                classOctaves[(size_t) k.cls] |= m;
+                anyKey = true;
+            }
         }
 
-        // ---- divisori
+        // ---- divisori (solo le uscite effettivamente usate)
         for (int c = 0; c < 12; ++c)
         {
-            const double inc = topFreq[(size_t) c] * ratio / sr;
+            const double inc = topFreq[(size_t) c] * ratio * invSr;
             double& T = counter[(size_t) c];
             T += inc;
             if (T >= 1024.0) T -= 1024.0;
-            if (! classActive[(size_t) c]) continue;
+            uint32_t m = classOctaves[(size_t) c];
             auto& oct = sq[(size_t) c];
-            for (int o = 0; o < kNumOctaves; ++o)
+            while (m != 0u)
             {
-                const double div = (double) (1 << o);
-                const double ph = T / div - std::floor (T / div);
-                oct[(size_t) o] = squareBlep (ph, std::min (inc / div, 0.5));
+                const int o = std::countr_zero (m);
+                m &= m - 1u;
+                const double x = T * kInvPow2[o];
+                oct[(size_t) o] = squareBlep (x - std::floor (x), std::min (inc * kInvPow2[o], 0.5));
             }
         }
 
         // ---- uscite TDA1008 (±2,5 V per tasto a buss bar pieno) sommate dalla scala resistiva
         double s8 = 0.0, s16 = 0.0, sBr = 0.0;
-        for (auto& k : keys)
-        {
-            if (k.level <= 0.0f) continue;
-            const auto& o = sq[(size_t) k.cls];
-            const int b = k.k8;
-            // TRANSPOSE (versione B): gli archi prendono le uscite del divisore un'ottava sopra o sotto;
-            // il brass resta sul 16' normale
-            const int bs = std::clamp (b - p.stringsTranspose, 2, kNumOctaves - 2);
-            // onde quadre al 50% come da schema (confermato dai campioni AIFF: h16/h32 assenti)
-            const float w8  = kW[0] * o[(size_t) bs] + kW[1] * o[(size_t) (bs - 1)] + kW[2] * o[(size_t) (bs - 2)];
-            const float w16 = kW[0] * o[(size_t) (bs + 1)] + kW[1] * o[(size_t) bs] + kW[2] * o[(size_t) (bs - 1)] + kW[3] * o[(size_t) (bs - 2)];
-            const float wBr = kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * o[(size_t) (b - 2)];
-            s8 += k.level * w8;
-            s16 += k.level * w16;
-            sBr += k.level * wBr;
-        }
+        if (anyKey)
+            for (auto& k : keys)
+            {
+                if (k.level <= 0.0f) continue;
+                const auto& o = sq[(size_t) k.cls];
+                const int b = k.k8;
+                // TRANSPOSE (versione B): gli archi prendono le uscite del divisore un'ottava sopra o sotto;
+                // il brass resta sul 16' normale
+                const int bs = std::clamp (b - p.stringsTranspose, 2, kNumOctaves - 2);
+                // onde quadre al 50% come da schema (confermato dai campioni AIFF: h16/h32 assenti)
+                if (use8)
+                    s8 += k.level * (kW[0] * o[(size_t) bs] + kW[1] * o[(size_t) (bs - 1)] + kW[2] * o[(size_t) (bs - 2)]);
+                if (use16)
+                    s16 += k.level * (kW[0] * o[(size_t) (bs + 1)] + kW[1] * o[(size_t) bs] + kW[2] * o[(size_t) (bs - 1)] + kW[3] * o[(size_t) (bs - 2)]);
+                if (useBr)
+                    sBr += k.level * (kW[0] * o[(size_t) (b + 1)] + kW[1] * o[(size_t) b] + kW[2] * o[(size_t) (b - 1)] + kW[3] * o[(size_t) (b - 2)]);
+            }
         const double v8 = bus8.process (2.5 * s8);
         const double v16 = bus16.process (2.5 * s16);
         const double vBr = busBrass.process (2.5 * (8.2 / 22.0) * sBr);
@@ -319,13 +367,18 @@ void Engine::process (const Outputs& out, int n)
         ensemble.process ((float) (vStr * stringsVca), eL, eR, p.stereoEnsemble);
 
         // ---- BRASS: inviluppo a circuito, convertitore esponenziale TR13/TR14, ladder
+        // l'inviluppo gira anche con BRASS spento, come nell'originale: riaccendendo il brass si
+        // ritrova lo stato lasciato dalle note precedenti (C18 si scarica in tempi fino a ~1 s)
         const double vSum = brassEnv.process (brassGate, p.brassDecay, p.brassAttack, p.brassRange, modVcf);
-        // RV1 (FINE RANGE) è un trimmer: taratura scelta = 100 Hz con RANGE a 0 e inviluppo a riposo
-        const double fc = brassBaseHz * std::exp (vSum / circuit::kVT);
         double brassOut = 0.0;
         if (p.brassOn)
+        {
+            // RV1 (FINE RANGE) è un trimmer: taratura scelta = 100 Hz con RANGE a 0 e inviluppo a riposo
+            const double fc = brassBaseHz * std::exp (vSum / circuit::kVT);
             brassOut = ladder.process (vBr * brassDrive, fc, p.brassResonance) * (0.272 / brassDrive);
-        else ladder.reset();
+        }
+        else if (brassWasOn) ladder.reset();
+        brassWasOn = p.brassOn;
 
         // ---- mixer IC3 (P559) e volume master
         gStr    += (float) ((tStr - gStr) * aSmooth);
@@ -347,8 +400,7 @@ void Engine::process (const Outputs& out, int n)
         }
         // jack SIGNAL (EXTERNAL OUT, R14 4K7 dall'uscita di IC14): bus brass grezzo, senza filtro
         if (out.signal != nullptr) out.signal[s] = (float) (rails (vBr) * 0.1);
-
-        lfoMonitor.store (lfoPhase < 0.5 ? 0.0f : 1.0f, std::memory_order_relaxed); // comparatore IC5
     }
+    lfoMonitor.store (lfoPhase < 0.5 ? 0.0f : 1.0f, std::memory_order_relaxed); // comparatore IC5
 }
 } // namespace perf
