@@ -28,7 +28,7 @@ public:
     void paintButton (juce::Graphics& g, bool highlighted, bool down) override;
     bool learning = false;
     float ledOverride = -1.0f; // >= 0: luminosità imposta (LED di velocità modulazione)
-    juce::String onText, offText; // scritta opzionale sul cappuccio
+    bool light = false; // cappuccio grigio chiaro (16', 8') invece che nero
 private:
     PerformerAudioProcessor& proc;
     const int paramIndex;
@@ -96,6 +96,8 @@ private:
     void addSlider (int paramIndex, const juce::String& label);
     void addButton (int paramIndex, const juce::String& label);
     void drawWood (juce::Graphics& g, juce::Rectangle<float> r);
+    static void drawScrew (juce::Graphics& g, juce::Point<float> c, float r, float angle);
+    juce::Rectangle<int> spanOf (int firstParam, int lastParam) const;
 };
 
 class PerformerEditor : public juce::AudioProcessorEditor, private juce::Timer

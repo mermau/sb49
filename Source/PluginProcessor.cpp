@@ -36,7 +36,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout PerformerAudioProcessor::cre
             layout.add (std::make_unique<juce::AudioParameterFloat> (id, p.name,
                 juce::NormalisableRange<float> (0.0f, 1.0f), p.defaultValue,
                 juce::AudioParameterFloatAttributes().withStringFromValueFunction (
-                    [] (float v, int) { return juce::String (v * 10.0f, 1); })));
+                    [] (float v, int) { return juce::String (v * 8.0f, 1); })));
     }
     layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { pid::stereoEnsembleId, 1 },
                                                             "Stereo Ensemble", false));

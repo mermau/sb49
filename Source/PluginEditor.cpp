@@ -61,36 +61,35 @@ void PerfButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 
     // LED
     const float lit = ledOverride >= 0.0f ? ledOverride : (on ? 1.0f : 0.0f);
-    juce::Rectangle<float> led (cx - 5.0f, b.getY() + 6.0f, 10.0f, 10.0f);
+    // piccolo LED rosso sopra il tasto
+    juce::Rectangle<float> led (cx - 3.5f, b.getY() + 10.0f, 7.0f, 7.0f);
+    g.setColour (juce::Colour (0xff0d0d0e));
+    g.fillEllipse (led.expanded (2.0f));
     if (lit > 0.05f)
     {
-        g.setColour (ui::ledOn.withAlpha (0.25f * lit));
-        g.fillEllipse (led.expanded (6.0f * lit));
+        g.setColour (ui::ledOn.withAlpha (0.22f * lit));
+        g.fillEllipse (led.expanded (5.0f * lit));
     }
     g.setColour (ui::ledOff.interpolatedWith (ui::ledOn, lit));
     g.fillEllipse (led);
-    g.setColour (juce::Colours::black);
-    g.drawEllipse (led, 1.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.25f + 0.35f * lit));
+    g.fillEllipse (led.getX() + 1.6f, led.getY() + 1.2f, 2.2f, 1.8f);
 
-    // cappuccio: "affonda" quando inserito
-    const float depth = on || down ? 2.0f : 0.0f;
-    juce::Rectangle<float> cap (cx - 16.0f, b.getY() + 34.0f + depth, 32.0f, 32.0f);
-    g.setColour (juce::Colours::black.withAlpha (0.6f));
-    g.fillRoundedRectangle (cap.translated (1.5f, 3.0f - depth), 3.0f);
-    auto top = on ? ui::creamDim : ui::cream;
+    // cappuccio quadrato senza scritte: "affonda" quando inserito
+    const float depth = on || down ? 1.5f : 0.0f;
+    juce::Rectangle<float> cap (cx - 14.0f, b.getY() + 30.0f + depth, 28.0f, 28.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.65f));
+    g.fillRoundedRectangle (cap.translated (1.5f, 3.0f - depth), 1.5f);
+    auto top = light ? juce::Colour (0xffc9c8c3) : juce::Colour (0xff2b2b2e);
+    if (on) top = top.darker (0.12f);
     if (highlighted) top = top.brighter (0.08f);
-    juce::ColourGradient grad (top.brighter (0.1f), cap.getX(), cap.getY(), top.darker (0.15f), cap.getX(), cap.getBottom(), false);
+    juce::ColourGradient grad (top.brighter (0.12f), cap.getX(), cap.getY(), top.darker (0.25f), cap.getX(), cap.getBottom(), false);
     g.setGradientFill (grad);
-    g.fillRoundedRectangle (cap, 3.0f);
-    g.setColour (juce::Colours::black.withAlpha (0.4f));
-    g.drawRoundedRectangle (cap, 3.0f, 1.0f);
-
-    if (onText.isNotEmpty())
-    {
-        g.setColour (ui::panel);
-        g.setFont (font (9.5f));
-        g.drawText (on ? onText : offText, cap, juce::Justification::centred);
-    }
+    g.fillRoundedRectangle (cap, 1.5f);
+    g.setColour (juce::Colours::white.withAlpha (light ? 0.35f : 0.1f));
+    g.drawLine (cap.getX() + 1.5f, cap.getY() + 1.0f, cap.getRight() - 1.5f, cap.getY() + 1.0f, 1.0f);
+    g.setColour (juce::Colours::black);
+    g.drawRoundedRectangle (cap, 1.5f, 1.0f);
     if (learning)
     {
         g.setColour (ui::learn);
@@ -152,7 +151,7 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     : proc (p), keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     // BRASS SECTION
-    sections.push_back ({ "BRASS SECTION", (int) slots.size(), 6, {} });
+    sections.push_back ({ "BRASS", (int) slots.size(), 6, {} });
     addSlider (pid::brassAttack, "ATTACK");
     addSlider (pid::brassDecay, "DECAY");
     addSlider (pid::brassRange, "RANGE");
@@ -160,24 +159,25 @@ PerformerPanel::PerformerPanel (PerformerAudioProcessor& p)
     addButton (pid::brassOn, "ON");
     addSlider (pid::brassVolume, "VOLUME");
     // STRINGS SECTION
-    sections.push_back ({ "STRINGS SECTION", (int) slots.size(), 8, {} });
+    sections.push_back ({ "STRINGS", (int) slots.size(), 8, {} });
     addSlider (pid::stringsLow, "LOW");
-    addSlider (pid::stringsMid, "MID");
+    addSlider (pid::stringsMid, "MIDDLE");
     addSlider (pid::stringsHigh, "HIGH");
+    for (int i = 0; i < 3; ++i) sliders[sliders.size() - 1 - (size_t) i]->getProperties().set ("eq", true);
     addButton (pid::strings16, "16'");
+    buttons.back()->light = true;
     addButton (pid::strings8, "8'");
+    buttons.back()->light = true;
     addSlider (pid::crescendo, "CRESCENDO");
     addSlider (pid::sustain, "SUSTAIN");
     addSlider (pid::stringsVolume, "VOLUME");
     // MODULATION SECTION
     sections.push_back ({ "MODULATION", (int) slots.size(), 4, {} });
-    addSlider (pid::modDelay, "DELAY");
+    addSlider (pid::modDelay, "DELAY\nLENGTH");
     addSlider (pid::modRate, "RATE");
     addSlider (pid::modDepth, "DEPTH");
-    addButton (pid::modToVcf, "VCF / FM");
+    addButton (pid::modToVcf, {}); // etichette VCF / FM con i simboli d'onda disegnate a parte
     modLedButton = buttons.back().get();
-    modLedButton->onText = "VCF";
-    modLedButton->offText = "FM";
     // MASTER
     sections.push_back ({ "MASTER", (int) slots.size(), 1, {} });
     addSlider (pid::masterVolume, "VOLUME");
@@ -267,24 +267,23 @@ void PerformerPanel::resized()
     for (auto& sec : sections)
     {
         const int w = sec.count * slotW + 16;
-        sec.box = { x, 86, w, 232 };
+        sec.box = { x, 78, w, 240 };
         for (int i = 0; i < sec.count; ++i)
         {
             auto& slot = slots[(size_t) (sec.first + i)];
-            slot.area = { x + 8 + i * slotW, 94, slotW, 216 };
+            slot.area = { x + 8 + i * slotW, 86, slotW, 226 };
             if (dynamic_cast<PerfButton*> (slot.comp) != nullptr)
-                slot.comp->setBounds (slot.area.getX(), 140, slotW, 80);
+                slot.comp->setBounds (slot.area.getX(), 140, slotW, 70);
             else
-                slot.comp->setBounds (slot.area.getX(), 96, slotW, 176);
+                slot.comp->setBounds (slot.area.getX(), 104, slotW, 166);
         }
         x += w + gap;
     }
 
     pitchKnob->setBounds (944, 7, 44, 44);
     {   // deviatore TRANSPOSE sotto i pulsanti 16' e 8'
-        juce::Rectangle<int> a;
-        for (auto& s : slots) if (s.paramIndex == pid::strings16 || s.paramIndex == pid::strings8) a = a.isEmpty() ? s.area : a.getUnion (s.area);
-        transposeSwitch->setBounds (a.getX() - 6, 226, a.getWidth() + 12, 42);
+        const auto a = spanOf (pid::strings16, pid::strings8);
+        transposeSwitch->setBounds (a.getX() - 6, 222, a.getWidth() + 12, 42);
     }
     stereoToggle.setBounds (1022, 6, 128, 22);
     separateToggle.setBounds (1022, 30, 128, 22);
@@ -296,37 +295,101 @@ void PerformerPanel::resized()
     keyboard.setBlackNoteLengthProportion (0.62f);
 }
 
+juce::Rectangle<int> PerformerPanel::spanOf (int firstParam, int lastParam) const
+{
+    juce::Rectangle<int> a;
+    for (auto& s : slots)
+        if (s.paramIndex >= firstParam && s.paramIndex <= lastParam)
+            a = a.isEmpty() ? s.area : a.getUnion (s.area);
+    return a;
+}
+
+void PerformerPanel::drawScrew (juce::Graphics& g, juce::Point<float> c, float r, float angle)
+{
+    const juce::Rectangle<float> head (c.x - r, c.y - r, 2.0f * r, 2.0f * r);
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
+    g.fillEllipse (head.translated (0.6f, 0.9f));
+    juce::ColourGradient grad (juce::Colour (0xffb9b9bd), head.getX(), head.getY(),
+                               juce::Colour (0xff4a4a4f), head.getRight(), head.getBottom(), false);
+    g.setGradientFill (grad);
+    g.fillEllipse (head);
+    juce::Path slotPath;
+    slotPath.addRectangle (-r * 0.8f, -0.55f, r * 1.6f, 1.1f);
+    g.setColour (juce::Colour (0xff1c1c1e));
+    g.fillPath (slotPath, juce::AffineTransform::rotation (angle).translated (c));
+}
+
 void PerformerPanel::drawWood (juce::Graphics& g, juce::Rectangle<float> r)
 {
-    juce::ColourGradient wood (juce::Colour (0xff5a3720), r.getX(), r.getY(),
-                               juce::Colour (0xff3b2213), r.getRight(), r.getY(), false);
-    wood.addColour (0.5, juce::Colour (0xff6d4428));
+    // noce chiaro
+    juce::ColourGradient wood (juce::Colour (0xff7a4c2a), r.getX(), r.getY(),
+                               juce::Colour (0xff5c361b), r.getRight(), r.getY(), false);
+    wood.addColour (0.45, juce::Colour (0xff9a663c));
     g.setGradientFill (wood);
     g.fillRoundedRectangle (r, 6.0f);
     juce::Random rnd (int (r.getX()) + 7);
-    for (int i = 0; i < 14; ++i)
+    for (int i = 0; i < 16; ++i)
     {
         const float gx = r.getX() + 3.0f + rnd.nextFloat() * (r.getWidth() - 6.0f);
-        g.setColour (juce::Colour (0xff2a170b).withAlpha (0.25f + 0.3f * rnd.nextFloat()));
+        g.setColour (juce::Colour (0xff3d2210).withAlpha (0.18f + 0.25f * rnd.nextFloat()));
         juce::Path grain;
         grain.startNewSubPath (gx, r.getY());
         grain.cubicTo (gx + 3.0f, r.getY() + r.getHeight() * 0.3f, gx - 3.0f, r.getY() + r.getHeight() * 0.7f,
                        gx + 1.5f, r.getBottom());
-        g.strokePath (grain, juce::PathStrokeType (0.8f + rnd.nextFloat()));
+        g.strokePath (grain, juce::PathStrokeType (0.7f + rnd.nextFloat()));
     }
+    g.setColour (juce::Colours::white.withAlpha (0.08f));
+    g.drawLine (r.getX() + 2.0f, r.getY() + 4.0f, r.getX() + 2.0f, r.getBottom() - 4.0f, 1.5f);
     g.setColour (juce::Colours::black.withAlpha (0.5f));
     g.drawRoundedRectangle (r, 6.0f, 1.0f);
 }
+
+namespace
+{
+// sottotitolo serigrafato con filetti laterali: "—— FILTER CONTROLS ——"
+void drawRuledHeading (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> r, float size)
+{
+    const juce::Font f (juce::FontOptions (size, juce::Font::bold));
+    const float tw = juce::GlyphArrangement::getStringWidth (f, text) + 10.0f;
+    const float cy = r.getCentreY();
+    g.setColour (ui::creamDim);
+    g.drawLine (r.getX() + 6.0f, cy, r.getCentreX() - tw * 0.5f, cy, 0.9f);
+    g.drawLine (r.getCentreX() + tw * 0.5f, cy, r.getRight() - 6.0f, cy, 0.9f);
+    g.setColour (ui::cream);
+    g.setFont (f);
+    g.drawText (text, r, juce::Justification::centred, false);
+}
+
+// piccolo simbolo d'onda quadra accanto a VCF / FM
+void drawPulseGlyph (juce::Graphics& g, float x, float cy, float w, float h)
+{
+    juce::Path p;
+    p.startNewSubPath (x, cy + h * 0.5f);
+    p.lineTo (x + w * 0.2f, cy + h * 0.5f);
+    p.lineTo (x + w * 0.2f, cy - h * 0.5f);
+    p.lineTo (x + w * 0.6f, cy - h * 0.5f);
+    p.lineTo (x + w * 0.6f, cy + h * 0.5f);
+    p.lineTo (x + w, cy + h * 0.5f);
+    g.strokePath (p, juce::PathStrokeType (1.0f));
+}
+} // namespace
 
 void PerformerPanel::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colours::black);
 
-    // pannello
-    juce::Rectangle<float> face (30.0f, 0.0f, (float) W - 60.0f, 336.0f);
-    juce::ColourGradient pg (ui::panelEdge, 0.0f, 0.0f, ui::panel, 0.0f, 336.0f, false);
-    g.setGradientFill (pg);
+    // pannello nero opaco
+    juce::Rectangle<float> face (30.0f, 0.0f, (float) W - 60.0f, 322.0f);
+    g.setColour (ui::face);
     g.fillRect (face);
+    {   // grana opaca appena percettibile
+        juce::Random rnd (1234);
+        for (int i = 0; i < 1400; ++i)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.012f + 0.018f * rnd.nextFloat()));
+            g.fillRect (30.0f + rnd.nextFloat() * ((float) W - 60.0f), rnd.nextFloat() * 322.0f, 1.0f, 1.0f);
+        }
+    }
 
     // intestazione: logo BIZARRE Entertainer (lettering originale, font OFL Monoton e Shrikhand)
     {
@@ -362,30 +425,73 @@ void PerformerPanel::paint (juce::Graphics& g)
     g.setColour (ui::cream);
     g.setFont (font (10.0f));
     g.drawText ("PITCH", juce::Rectangle<float> (892.0f, 20.0f, 48.0f, 16.0f), juce::Justification::centredRight);
-    g.setColour (ui::creamDim.withAlpha (0.5f));
-    g.drawLine (40.0f, 58.0f, (float) W - 40.0f, 58.0f, 1.0f);
 
-    // sezioni
+    // riquadri: filetto rosso spento, titolo che interrompe il bordo superiore, viti agli angoli
     for (const auto& sec : sections)
     {
+        const auto box = sec.box.toFloat();
+        g.setColour (ui::boxRed);
+        g.drawRoundedRectangle (box, 6.0f, 1.3f);
+
+        const juce::Font tf (juce::FontOptions (12.5f, juce::Font::bold));
+        const float tw = juce::GlyphArrangement::getStringWidth (tf, sec.title) + 14.0f;
+        const juce::Rectangle<float> tr (box.getCentreX() - tw * 0.5f, box.getY() - 8.0f, tw, 16.0f);
+        g.setColour (ui::face);
+        g.fillRect (tr);
         g.setColour (ui::cream);
-        g.setFont (font (11.5f));
-        g.drawText (sec.title, sec.box.withY (64).withHeight (18), juce::Justification::centred);
-        g.setColour (ui::creamDim);
-        g.drawRoundedRectangle (sec.box.toFloat(), 9.0f, 1.6f);
+        g.setFont (tf);
+        g.drawText (sec.title, tr, juce::Justification::centred, false);
+
+        const float in = 7.0f;
+        int k = sec.first;
+        for (auto c : { box.getTopLeft() + juce::Point<float> (in, in), box.getTopRight() + juce::Point<float> (-in, in),
+                        box.getBottomLeft() + juce::Point<float> (in, -in), box.getBottomRight() + juce::Point<float> (-in, -in) })
+            drawScrew (g, c, 2.8f, 0.4f + 0.9f * (float) (k++ % 3));
+
         for (int i = 0; i < sec.count; ++i)
         {
             const auto& slot = slots[(size_t) (sec.first + i)];
+            if (slot.label.isEmpty()) continue;
+            const bool twoLine = slot.label.containsChar ('\n');
             g.setColour (ui::cream);
-            g.setFont (font (9.0f));
-            g.drawFittedText (slot.label, slot.area.withY (278).withHeight (26).reduced (1, 0),
-                              juce::Justification::centred, 2, 0.8f);
+            g.setFont (font (8.6f));
+            g.drawFittedText (slot.label, slot.area.withY (twoLine ? 282 : 286).withHeight (twoLine ? 24 : 16).reduced (1, 0),
+                              juce::Justification::centred, 2, 0.75f);
         }
     }
 
-    // listello sopra la tastiera
-    g.setColour (juce::Colour (0xff5e1410));
-    g.fillRect (30, 330, W - 60, 8);
+    // sottotitoli serigrafati
+    {
+        auto band = [] (juce::Rectangle<int> r, int y, int h) { return r.withY (y).withHeight (h).toFloat(); };
+        drawRuledHeading (g, "FILTER CONTROLS", band (spanOf (pid::brassAttack, pid::brassResonance), 88, 12), 8.6f);
+        drawRuledHeading (g, "E. G. CONTROL", band (spanOf (pid::stringsLow, pid::stringsHigh), 88, 12), 8.6f);
+        drawRuledHeading (g, "LENGTH", band (spanOf (pid::crescendo, pid::sustain), 273, 10), 7.8f);
+    }
+
+    // VCF / FM con i simboli d'onda, sotto il tasto della modulazione
+    if (modLedButton != nullptr)
+    {
+        const auto b = modLedButton->getBounds().toFloat();
+        const float lx = b.getCentreX() - 17.0f;
+        g.setColour (ui::cream);
+        g.setFont (font (8.6f));
+        g.drawText ("VCF", juce::Rectangle<float> (lx, b.getBottom() + 6.0f, 22.0f, 12.0f), juce::Justification::centredLeft, false);
+        g.drawText ("FM",  juce::Rectangle<float> (lx, b.getBottom() + 22.0f, 22.0f, 12.0f), juce::Justification::centredLeft, false);
+        drawPulseGlyph (g, lx + 23.0f, b.getBottom() + 12.0f, 11.0f, 6.0f);
+        drawPulseGlyph (g, lx + 23.0f, b.getBottom() + 28.0f, 11.0f, 6.0f);
+    }
+
+    // listello nero inclinato sopra la tastiera, con viti
+    {
+        const juce::Rectangle<float> strip (30.0f, 322.0f, (float) W - 60.0f, 16.0f);
+        juce::ColourGradient sg (juce::Colour (0xff2c2c2f), 0.0f, strip.getY(), juce::Colour (0xff060607), 0.0f, strip.getBottom(), false);
+        g.setGradientFill (sg);
+        g.fillRect (strip);
+        g.setColour (juce::Colours::white.withAlpha (0.14f));
+        g.drawLine (strip.getX(), strip.getY() + 0.5f, strip.getRight(), strip.getY() + 0.5f, 1.0f);
+        for (float sx : { 60.0f, (float) W * 0.5f, (float) W - 60.0f })
+            drawScrew (g, { sx, strip.getCentreY() }, 3.0f, 0.7f);
+    }
 
     // fianchi in legno
     drawWood (g, { 0.0f, 0.0f, 34.0f, (float) H });
